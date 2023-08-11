@@ -1,0 +1,29 @@
+/price_task?action=add
+
+{
+  "userID": "12",
+  "symbols": ["BTCUSDT", "ETHUSDT"],
+  "tradeTypes": ["futures", "SPOT"],
+  "interval": "10",
+  "duration": "seconds",
+  "sm": [
+	{
+    	"name": "WA",
+    	"username": "+2347033500593"
+	},
+	{
+		"name": "TG",
+		"username": "+447585291678"
+	}]
+}
+
+{
+  "firstName": "",
+  "lastName": "",
+  "email": "",
+  "username": "",
+  "passwordHash": "",
+  "defaultSocial": "Telegram",
+  "handleType": "mobile",
+  "handle": ""
+}
