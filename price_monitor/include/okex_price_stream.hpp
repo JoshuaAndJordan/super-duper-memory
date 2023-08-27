@@ -9,6 +9,7 @@
 #include <optional>
 #include <set>
 
+#include "commodity.hpp"
 #include "json_utils.hpp"
 
 namespace jordan {
@@ -28,13 +29,14 @@ class okex_price_stream_t
 
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
+  std::set<instrument_type_t> &m_tradedInstruments;
+  std::set<std::string> m_instruments{};
   std::unique_ptr<resolver> m_resolver;
   std::optional<websock::stream<beast::ssl_stream<beast::tcp_stream>>>
       m_sslWebStream;
   std::optional<std::string> m_sendingBufferText;
   std::optional<beast::flat_buffer> m_buffer;
-  std::set<std::string> m_instrumentIDs{};
-  int m_pushedTypes{};
+  std::string const m_tradeType;
 
 private:
   void initiate_websocket_connection();
@@ -48,9 +50,12 @@ private:
   void process_pushed_instruments_data(json::array_t const &);
   void process_pushed_tickers_data(json::array_t const &);
   void ticker_subscribe();
+  void report_error_and_retry(beast::error_code const ec);
 
 public:
-  okex_price_stream_t(net::io_context &, net::ssl::context &);
+  okex_price_stream_t(net::io_context &, net::ssl::context &,
+                      trade_type_e const tradeType);
+  ~okex_price_stream_t() = default;
   void run();
 };
 } // namespace jordan

@@ -1,6 +1,5 @@
 #include "binance_price_stream.hpp"
 #include "crypto_utils.hpp"
-#include "request_handler.hpp"
 
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
@@ -18,14 +17,19 @@ char const *const binance_futures_price_stream_t::ws_host =
 char const *const binance_spot_price_stream_t::ws_port_number = "9443";
 char const *const binance_futures_price_stream_t::ws_port_number = "443";
 
-binance_price_stream_t::binance_price_stream_t(net::io_context &io_context,
-                                               net::ssl::context &ssl_ctx,
+binance_price_stream_t::binance_price_stream_t(net::io_context &ioContext,
+                                               net::ssl::context &sslContext,
+                                               trade_type_e const tradeType,
                                                char const *const rest_api_host,
                                                char const *const ws_host,
                                                char const *const ws_port_number)
     : m_restApiHost(rest_api_host), m_wsHostname(ws_host),
-      m_wsPortNumber(ws_port_number), m_ioContext{io_context},
-      m_sslContext{ssl_ctx}, m_sslWebStream{}, m_resolver{} {}
+      m_wsPortNumber(ws_port_number), m_ioContext{ioContext},
+      m_sslContext{sslContext},
+      m_tradedInstruments(
+          instrument_sink_t::get_all_listed_instruments()[exchange_e::binance]
+                                                         [tradeType]),
+      m_resolver{}, m_sslWebStream{} {}
 
 void binance_price_stream_t::run() { rest_api_initiate_connection(); }
 
@@ -53,16 +57,14 @@ void binance_price_stream_t::rest_api_connect_to_resolved_names(
       .expires_after(std::chrono::seconds(30));
 
   beast::get_lowest_layer(*m_sslWebStream)
-      .async_connect(
-          resolved_names,
-          [self = shared_from_this()](
-              auto const error_code,
-              net::ip::tcp::resolver::results_type::endpoint_type const
-                  &connected_name) {
-            if (error_code)
-              return spdlog::error(error_code.message());
-            self->rest_api_perform_ssl_handshake(connected_name);
-          });
+      .async_connect(resolved_names,
+                     [self = shared_from_this()](auto const error_code,
+                                                 auto const &connected_name) {
+                       if (error_code)
+                         return spdlog::error(error_code.message());
+                       self->rest_api_perform_ssl_handshake(connected_name);
+                     });
+  spdlog::info("Connecting...");
 }
 
 void binance_price_stream_t::rest_api_perform_ssl_handshake(
@@ -180,7 +182,7 @@ void binance_price_stream_t::websock_connect_to_resolved_names(
             if (error_code) {
               return spdlog::error(error_code.message());
             }
-            websock_perform_ssl_handshake(connected_name);
+            self->websock_perform_ssl_handshake(connected_name);
           });
 }
 
@@ -267,12 +269,14 @@ void binance_price_stream_t::process_pushed_instruments_data(
   instruments.reserve(data_list.size());
   for (auto const &data_json : data_list) {
     auto const data_object = data_json.get<json::object_t>();
-    std::string instrument_id = data_object.at("symbol").get<json::string_t>();
-
-    instruments.push_back({instrument_id});
+    instrument_type_t instrument{};
+    instrument.name = data_object.at("symbol").get<json::string_t>();
+    spdlog::info("BinPushed: {}", instrument.name);
+    spdlog::info("BinPushed: {}", instrument.name);
+    instruments.emplace_back(std::move(instrument));
   }
 
-  save_instruments_data(std::move(instruments));
+  m_tradedInstruments.insert(instruments.cbegin(), instruments.cend());
 }
 
 void binance_price_stream_t::interpret_generic_messages() {
@@ -292,50 +296,51 @@ void binance_price_stream_t::interpret_generic_messages() {
 void binance_price_stream_t::process_pushed_tickers_data(
     json::array_t const &data_list) {
 
-  std::vector<pushed_subscription_data_t> pushed_list{};
+  std::vector<instrument_type_t> pushed_list{};
   pushed_list.reserve(data_list.size());
 
   for (auto const &data_json : data_list) {
-    pushed_subscription_data_t data{};
+    instrument_type_t data{};
     auto const data_object = data_json.get<json::object_t>();
     // symbol => BTCDOGE, DOGEUSDT etc
-    data.symbolID = data_object.at("s").get<json::string_t>();
-    data.currentPrice = std::stod(data_object.at("c").get<json::string_t>());
+    data.name = data_object.at("s").get<json::string_t>();
+    data.current_price = std::stod(data_object.at("c").get<json::string_t>());
     data.open24h = std::stod(data_object.at("o").get<json::string_t>());
+    spdlog::info("BinPrice: {} -> {}", data.name, data.current_price);
     pushed_list.push_back(std::move(data));
   }
 
-  auto &market_stream = request_handler_t::get_tokens_container();
-  market_stream.append_list(std::move(pushed_list));
+  m_tradedInstruments.insert(pushed_list.begin(), pushed_list.end());
 }
 
 // ===========================================================
 
 binance_spot_price_stream_t::binance_spot_price_stream_t(
     net::io_context &ioContext, net::ssl::context &sslContext)
-    : binance_price_stream_t(ioContext, sslContext, rest_api_host, ws_host,
-                             ws_port_number) {}
-
-void binance_spot_price_stream_t::save_instruments_data(
-    std::vector<instrument_type_t> &&instruments) {
-  auto &allInstruments = request_handler_t::get_all_listed_instruments();
-  auto &binanceSpotInstruments =
-      allInstruments[(int)exchange_e::binance][(int)trade_type_e::spot];
-  binanceSpotInstruments.insert_list(std::move(instruments));
-}
+    : binance_price_stream_t(ioContext, sslContext, trade_type_e::spot,
+                             rest_api_host, ws_host, ws_port_number) {}
 
 // ===========================================================
 binance_futures_price_stream_t::binance_futures_price_stream_t(
     net::io_context &ioContext, net::ssl::context &sslContext)
-    : binance_price_stream_t(ioContext, sslContext, rest_api_host, ws_host,
-                             ws_port_number) {}
+    : binance_price_stream_t(ioContext, sslContext, trade_type_e::futures,
+                             rest_api_host, ws_host, ws_port_number) {}
 
-void binance_futures_price_stream_t::save_instruments_data(
-    std::vector<instrument_type_t> &&instruments) {
-  auto &allInstruments = request_handler_t::get_all_listed_instruments();
-  auto &binanceFuturesInstruments =
-      allInstruments[(int)exchange_e::binance][(int)trade_type_e::futures];
-  binanceFuturesInstruments.insert_list(std::move(instruments));
+// ===========================================================
+
+void binance_price_watcher(net::io_context &io_context,
+                           net::ssl::context &ssl_context) {
+  auto spot =
+      std::make_shared<binance_spot_price_stream_t>(io_context, ssl_context);
+  auto futures =
+      std::make_shared<binance_futures_price_stream_t>(io_context, ssl_context);
+  spdlog::info("Running binance spot and futures");
+
+  spot->run();
+  futures->run();
+
+//   std::this_thread::sleep_for(std::chrono::seconds(5));
+//  io_context.run();
 }
 
 } // namespace jordan

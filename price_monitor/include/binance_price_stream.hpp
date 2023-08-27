@@ -9,7 +9,9 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket/stream.hpp>
 #include <optional>
+#include <set>
 
+#include "commodity.hpp"
 #include "json_utils.hpp"
 
 namespace jordan {
@@ -30,6 +32,8 @@ class binance_price_stream_t
   char const *const m_wsPortNumber;
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
+  std::set<instrument_type_t> &m_tradedInstruments;
+
   std::optional<resolver> m_resolver;
   std::optional<websock::stream<beast::ssl_stream<beast::tcp_stream>>>
       m_sslWebStream;
@@ -58,14 +62,13 @@ private:
   void process_pushed_instruments_data(json::array_t const &);
 
 protected:
-  virtual void save_instruments_data(std::vector<instrument_type_t> &&) = 0;
   virtual std::string rest_api_get_target() const = 0;
 
 public:
   binance_price_stream_t(net::io_context &, net::ssl::context &,
-                         char const *const rest_api_host,
-                         char const *const spot_ws_host,
-                         char const *const ws_port_number);
+                         trade_type_e const, char const *const restApiHost,
+                         char const *const spotWsHost,
+                         char const *const wsPortNumber);
   virtual ~binance_price_stream_t() = default;
   void run();
 };
@@ -80,7 +83,6 @@ public:
   std::string rest_api_get_target() const override {
     return "/api/v3/ticker/price";
   }
-  void save_instruments_data(std::vector<instrument_type_t> &&) override;
 };
 
 class binance_futures_price_stream_t : public binance_price_stream_t {
@@ -93,7 +95,6 @@ public:
   std::string rest_api_get_target() const override {
     return "/fapi/v1/ticker/price";
   }
-  void save_instruments_data(std::vector<instrument_type_t> &&) override;
 };
 
 } // namespace jordan
