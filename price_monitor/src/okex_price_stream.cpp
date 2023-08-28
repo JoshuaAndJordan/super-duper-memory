@@ -1,10 +1,8 @@
 #include "okex_price_stream.hpp"
 
 #include "crypto_utils.hpp"
+#include "https_rest_api.hpp"
 #include <spdlog/spdlog.h>
-
-#include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
 
 namespace jordan {
 
@@ -40,111 +38,29 @@ void okex_price_stream_t::run() { rest_api_initiate_connection(); }
 
 void okex_price_stream_t::rest_api_initiate_connection() {
   m_resolver.emplace(m_ioContext);
-
-  m_resolver->async_resolve(
-      api_host, api_service,
-      [self = shared_from_this()](
-          auto const error_code,
-          net::ip::tcp::resolver::results_type const &results) {
-        if (error_code) {
-          return spdlog::error(error_code.message());
-        }
-        self->rest_api_connect_to_resolved_names(results);
-      });
-}
-
-void okex_price_stream_t::rest_api_connect_to_resolved_names(
-    results_type const &resolved_names) {
-
-  m_resolver.reset();
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(30));
 
-  beast::get_lowest_layer(*m_sslWebStream)
-      .async_connect(resolved_names,
-                     [self = shared_from_this()](auto const error_code,
-                                                 auto const &connected_name) {
-                       if (error_code)
-                         return spdlog::error(error_code.message());
-                       self->rest_api_perform_ssl_handshake(connected_name);
-                     });
+  auto onError = [self = shared_from_this()](beast::error_code const ec) {
+    spdlog::error("OKX -> '{}' gave this error: {}", self->m_tradeType,
+                  ec.message());
+    self->report_error_and_retry(ec);
+  };
+
+  auto onSuccess = [self = shared_from_this()](std::string const &data) {
+    self->rest_api_on_data_received(data);
+  };
+
+  m_httpClient = std::make_unique<https_rest_api_t>(
+      m_ioContext, m_sslContext, m_sslWebStream->next_layer(), *m_resolver,
+      api_host, api_service,
+      "/api/v5/public/instruments?instType=" + m_tradeType);
+  m_httpClient->set_callbacks(std::move(onError), std::move(onSuccess));
+  m_httpClient->run();
 }
 
-void okex_price_stream_t::rest_api_perform_ssl_handshake(
-    results_type::endpoint_type const &ep) {
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(10));
-  // Set SNI Hostname (many hosts need this to handshake successfully)
-  if (!SSL_set_tlsext_host_name(m_sslWebStream->next_layer().native_handle(),
-                                api_host)) {
-    auto const ec = beast::error_code(static_cast<int>(::ERR_get_error()),
-                                      net::error::get_ssl_category());
-    return spdlog::error(ec.message());
-  }
-
-  m_sslWebStream->next_layer().async_handshake(
-      net::ssl::stream_base::client,
-      [self = shared_from_this()](beast::error_code const ec) {
-        if (ec)
-          return spdlog::error(ec.message());
-        return self->rest_api_get_all_available_instruments();
-      });
-}
-
-void okex_price_stream_t::rest_api_get_all_available_instruments() {
-  rest_api_prepare_request();
-  rest_api_send_request();
-}
-
-void okex_price_stream_t::rest_api_prepare_request() {
-  using http::field;
-  using http::verb;
-
-  auto &request = m_httpRequest.emplace();
-  request.method(verb::get);
-  request.version(11);
-  request.target("/api/v5/public/instruments?instType=" + m_tradeType);
-  request.set(field::host, api_host);
-  request.set(field::user_agent, "MyCryptoLog/0.0.1");
-  request.set(field::accept, "*/*");
-  request.set(field::accept_language, "en-US,en;q=0.5 --compressed");
-}
-
-void okex_price_stream_t::rest_api_send_request() {
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(20));
-  http::async_write(m_sslWebStream->next_layer(), *m_httpRequest,
-                    [self = shared_from_this()](beast::error_code const ec,
-                                                std::size_t const) {
-                      if (ec) {
-                        return spdlog::error(ec.message());
-                      }
-                      self->rest_api_receive_response();
-                    });
-}
-
-void okex_price_stream_t::rest_api_receive_response() {
-  m_httpRequest.reset();
-  m_buffer.emplace();
-  m_httpResponse.emplace();
-
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(20));
-  http::async_read(
-      m_sslWebStream->next_layer(), *m_buffer, *m_httpResponse,
-      [self = shared_from_this()](beast::error_code ec, std::size_t const sz) {
-        self->rest_api_on_data_received(ec);
-      });
-}
-
-void okex_price_stream_t::rest_api_on_data_received(
-    beast::error_code const ec) {
-  if (ec)
-    return spdlog::error(ec.message());
-
+void okex_price_stream_t::rest_api_on_data_received(std::string const &data) {
   try {
-    auto const obj = json::parse(m_httpResponse->body()).get<json::object_t>();
+    auto const obj = json::parse(data).get<json::object_t>();
     auto const codeIter = obj.find("code");
     if (codeIter == obj.end() || codeIter->second.get<json::string_t>() != "0")
       return;
@@ -164,7 +80,7 @@ void okex_price_stream_t::report_error_and_retry(beast::error_code const ec) {
   spdlog::error(ec.message());
 
   // wait a bit and then retry
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(5));
   rest_api_initiate_connection();
 }
 

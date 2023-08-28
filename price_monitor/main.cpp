@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   std::thread binanceWatcher{[&ioContext, &sslContext] {
     jordan::binance_price_watcher(ioContext, sslContext);
   }};
-
+  
   std::thread kucoinWatcher{[&ioContext, &sslContext] {
     jordan::kucoin_price_watcher(ioContext, sslContext);
   }};

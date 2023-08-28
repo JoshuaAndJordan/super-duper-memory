@@ -1,8 +1,6 @@
 #include "binance_price_stream.hpp"
 #include "crypto_utils.hpp"
-
-#include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
+#include "https_rest_api.hpp"
 #include <spdlog/spdlog.h>
 
 namespace jordan {
@@ -35,115 +33,31 @@ void binance_price_stream_t::run() { rest_api_initiate_connection(); }
 
 void binance_price_stream_t::rest_api_initiate_connection() {
   m_resolver.emplace(m_ioContext);
-
-  m_resolver->async_resolve(
-      m_restApiHost, "https",
-      [self = shared_from_this()](
-          auto const error_code,
-          net::ip::tcp::resolver::results_type const &results) {
-        if (error_code) {
-          return spdlog::error(error_code.message());
-        }
-        self->rest_api_connect_to_resolved_names(results);
-      });
-}
-
-void binance_price_stream_t::rest_api_connect_to_resolved_names(
-    results_type const &resolved_names) {
-
-  m_resolver.reset();
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(30));
 
-  beast::get_lowest_layer(*m_sslWebStream)
-      .async_connect(resolved_names,
-                     [self = shared_from_this()](auto const error_code,
-                                                 auto const &connected_name) {
-                       if (error_code)
-                         return spdlog::error(error_code.message());
-                       self->rest_api_perform_ssl_handshake(connected_name);
-                     });
-  spdlog::info("Connecting...");
-}
+  m_httpClient = std::make_unique<https_rest_api_t>(
+      m_ioContext, m_sslContext, m_sslWebStream->next_layer(), *m_resolver,
+      m_restApiHost, "https", rest_api_get_target());
 
-void binance_price_stream_t::rest_api_perform_ssl_handshake(
-    results_type::endpoint_type const &ep) {
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(15));
-  // Set SNI Hostname (many hosts need this to handshake successfully)
-  if (!SSL_set_tlsext_host_name(m_sslWebStream->next_layer().native_handle(),
-                                m_restApiHost)) {
-    auto const ec = beast::error_code(static_cast<int>(::ERR_get_error()),
-                                      net::error::get_ssl_category());
-    return spdlog::error(ec.message());
-  }
+  auto onError = [self =
+                      shared_from_this()](beast::error_code const errorCode) {
+    spdlog::error("Binance -> '{}' gave this error: {}", self->m_restApiHost,
+                  errorCode.message());
+  };
 
-  m_sslWebStream->next_layer().async_handshake(
-      net::ssl::stream_base::client,
-      [self = shared_from_this()](beast::error_code const ec) {
-        if (ec)
-          return spdlog::error(ec.message());
-        return self->rest_api_get_all_available_instruments();
-      });
-}
+  auto onSuccess = [self = shared_from_this()](std::string const &data) {
+    self->rest_api_on_data_received(data);
+  };
 
-void binance_price_stream_t::rest_api_get_all_available_instruments() {
-  rest_api_prepare_request();
-  rest_api_send_request();
-}
-
-void binance_price_stream_t::rest_api_prepare_request() {
-  using http::field;
-  using http::verb;
-
-  auto &request = m_httpRequest.emplace();
-  request.method(verb::get);
-  request.version(11);
-  request.target(rest_api_get_target());
-  request.set(field::host, m_restApiHost);
-  request.set(field::user_agent, "MyCryptoLog/0.0.1");
-  request.set(field::accept, "*/*");
-  request.set(field::accept_language, "en-US,en;q=0.5 --compressed");
-}
-
-void binance_price_stream_t::rest_api_send_request() {
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(20));
-  http::async_write(m_sslWebStream->next_layer(), *m_httpRequest,
-                    [self = shared_from_this()](beast::error_code const ec,
-                                                std::size_t const) {
-                      if (ec) {
-                        return spdlog::error(ec.message());
-                      }
-                      self->rest_api_receive_response();
-                    });
-}
-
-void binance_price_stream_t::rest_api_receive_response() {
-  m_httpRequest.reset();
-  m_buffer.emplace();
-  m_httpResponse.emplace();
-
-  beast::get_lowest_layer(*m_sslWebStream)
-      .expires_after(std::chrono::seconds(20));
-  http::async_read(
-      m_sslWebStream->next_layer(), *m_buffer, *m_httpResponse,
-      [self = shared_from_this()](beast::error_code ec, std::size_t const sz) {
-        self->rest_api_on_data_received(ec);
-      });
+  m_httpClient->set_callbacks(std::move(onError), std::move(onSuccess));
+  m_httpClient->run();
 }
 
 void binance_price_stream_t::rest_api_on_data_received(
-    beast::error_code const ec) {
-  if (ec) {
-    return spdlog::error(ec.message());
-  }
-
+    std::string const &data) {
   try {
-    auto const token_list =
-        json::parse(m_httpResponse->body()).get<json::array_t>();
-    process_pushed_instruments_data(token_list);
+    auto const tokenList = json::parse(data).get<json::array_t>();
+    process_pushed_instruments_data(tokenList);
     return initiate_websocket_connection();
   } catch (std::exception const &e) {
     spdlog::error(e.what());
@@ -151,6 +65,7 @@ void binance_price_stream_t::rest_api_on_data_received(
 }
 
 void binance_price_stream_t::initiate_websocket_connection() {
+  m_httpClient.reset();
   m_resolver.emplace(m_ioContext);
 
   m_resolver->async_resolve(
@@ -205,9 +120,6 @@ void binance_price_stream_t::websock_perform_ssl_handshake(
 }
 
 void binance_price_stream_t::negotiate_websocket_connection() {
-  m_httpRequest.reset();
-  m_httpResponse.reset();
-
   m_sslWebStream->next_layer().async_handshake(
       net::ssl::stream_base::client,
       [self = shared_from_this()](beast::error_code const ec) {
@@ -293,10 +205,6 @@ void binance_price_stream_t::interpret_generic_messages() {
 
 void binance_price_stream_t::process_pushed_tickers_data(
     json::array_t const &data_list) {
-
-  std::vector<instrument_type_t> pushed_list{};
-  pushed_list.reserve(data_list.size());
-
   for (auto const &data_json : data_list) {
     instrument_type_t data{};
     auto const data_object = data_json.get<json::object_t>();
@@ -304,10 +212,9 @@ void binance_price_stream_t::process_pushed_tickers_data(
     data.name = data_object.at("s").get<json::string_t>();
     data.current_price = std::stod(data_object.at("c").get<json::string_t>());
     data.open24h = std::stod(data_object.at("o").get<json::string_t>());
-    pushed_list.push_back(std::move(data));
-  }
 
-  m_tradedInstruments.insert(pushed_list.begin(), pushed_list.end());
+    m_tradedInstruments.insert(std::move(data));
+  }
 }
 
 // ===========================================================
