@@ -66,13 +66,21 @@ void https_rest_api_t::rest_api_prepare_request() {
   using http::verb;
 
   auto &request = m_httpRequest.emplace();
-  request.method(verb::get);
   request.version(11);
   request.target(m_target);
   request.set(field::host, m_hostApi);
   request.set(field::user_agent, "MyCryptoLog/0.0.1");
   request.set(field::accept, "*/*");
   request.set(field::accept_language, "en-US,en;q=0.5 --compressed");
+
+  if (m_method == http_method_e::get) {
+    request.method(verb::get);
+  } else if (m_method == http_method_e::post) {
+    request.method(verb::post);
+    if (m_payload.has_value())
+      request.body() = *m_payload;
+  }
+  request.prepare_payload();
 }
 
 void https_rest_api_t::rest_api_send_request() {

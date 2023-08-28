@@ -256,27 +256,21 @@ void okex_price_stream_t::process_pushed_instruments_data(
     json::array_t const &data_list) {
   for (auto const &data_json : data_list) {
     auto const data_object = data_json.get<json::object_t>();
-    instrument_type_t order_info{};
-    // FUTURES, SPOT or SWAP
-    auto const instrumentType =
-        data_object.at("instType").get<json::string_t>();
-    // BTC-USDT, DOGE-USDT
-    if (instrumentType == m_tradeType)
-      m_instruments.insert(data_object.at("instId").get<json::string_t>());
+    m_instruments.insert(data_object.at("instId").get<json::string_t>());
   }
 }
 
 void okex_price_stream_t::process_pushed_tickers_data(
     json::array_t const &data_list) {
+  instrument_type_t data{};
   for (auto const &data_json : data_list) {
     auto const data_object = data_json.get<json::object_t>();
 
-    instrument_type_t data{};
     data.name = data_object.at("instId").get<json::string_t>();
     data.current_price =
         std::stod(data_object.at("last").get<json::string_t>());
     data.open24h = std::stod(data_object.at("sodUtc8").get<json::string_t>());
-    m_tradedInstruments.insert(std::move(data));
+    m_tradedInstruments.insert(data);
   }
 }
 
