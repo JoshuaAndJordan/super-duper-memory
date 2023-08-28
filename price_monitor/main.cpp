@@ -1,6 +1,10 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
 
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 
@@ -20,31 +24,36 @@ int main(int argc, char *argv[]) {
   int const native_thread_size = std::thread::hardware_concurrency();
   net::io_context ioContext{native_thread_size};
   boost::asio::ssl::context sslContext(
-      boost::asio::ssl::context::sslv23_client);
+      boost::asio::ssl::context::tlsv12_client);
   sslContext.set_default_verify_paths();
-  sslContext.set_verify_mode(boost::asio::ssl::verify_none);
+  char const *dir = std::getenv(X509_get_default_cert_dir_env());
+  if (!dir)
+    dir = X509_get_default_cert_dir();
 
-  // std::thread binanceWatcher{[&ioContext, &sslContext] {
-  // jordan::binance_price_watcher(ioContext, sslContext);
-  // }};
+  if (auto const verify_file = std::filesystem::path(dir) / "ca-bundle.crt";
+      dir && std::filesystem::exists(verify_file)) {
+    sslContext.set_verify_mode(ssl::verify_peer);
+    sslContext.load_verify_file(verify_file.string());
+  } else {
+    sslContext.set_verify_mode(ssl::verify_none);
+  }
 
-  // std::thread kucoinWatcher{[&ioContext, &sslContext] {
-  jordan::kucoin_price_watcher(ioContext, sslContext);
-  // }};
+  std::thread binanceWatcher{[&ioContext, &sslContext] {
+    jordan::binance_price_watcher(ioContext, sslContext);
+  }};
 
-  // std::thread okWatcher{[&ioContext, &sslContext] {
-  jordan::okexchange_price_watcher(ioContext, sslContext);
-  //}};
+  std::thread kucoinWatcher{[&ioContext, &sslContext] {
+    jordan::kucoin_price_watcher(ioContext, sslContext);
+  }};
 
-  std::vector<std::thread> threads{};
-  threads.reserve(native_thread_size);
-  for (int counter = 0; counter < native_thread_size; ++counter)
-    threads.emplace_back([&ioContext] { ioContext.run(); });
+  std::thread okWatcher{[&ioContext, &sslContext] {
+    jordan::okexchange_price_watcher(ioContext, sslContext);
+  }};
 
   // wait a bit for all tasks to start up and have async "actions" lined up
-  // binanceWatcher.join();
-  // kucoinWatcher.join();
-  // okWatcher.join();
+  binanceWatcher.join();
+  kucoinWatcher.join();
+  okWatcher.join();
 
   ioContext.run();
 

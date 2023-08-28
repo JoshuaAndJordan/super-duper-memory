@@ -102,7 +102,7 @@ void binance_price_stream_t::rest_api_prepare_request() {
   request.version(11);
   request.target(rest_api_get_target());
   request.set(field::host, m_restApiHost);
-  request.set(field::user_agent, "PostmanRuntime/7.28.1");
+  request.set(field::user_agent, "MyCryptoLog/0.0.1");
   request.set(field::accept, "*/*");
   request.set(field::accept_language, "en-US,en;q=0.5 --compressed");
 }
@@ -271,8 +271,6 @@ void binance_price_stream_t::process_pushed_instruments_data(
     auto const data_object = data_json.get<json::object_t>();
     instrument_type_t instrument{};
     instrument.name = data_object.at("symbol").get<json::string_t>();
-    spdlog::info("BinPushed: {}", instrument.name);
-    spdlog::info("BinPushed: {}", instrument.name);
     instruments.emplace_back(std::move(instrument));
   }
 
@@ -306,7 +304,6 @@ void binance_price_stream_t::process_pushed_tickers_data(
     data.name = data_object.at("s").get<json::string_t>();
     data.current_price = std::stod(data_object.at("c").get<json::string_t>());
     data.open24h = std::stod(data_object.at("o").get<json::string_t>());
-    spdlog::info("BinPrice: {} -> {}", data.name, data.current_price);
     pushed_list.push_back(std::move(data));
   }
 
@@ -334,13 +331,10 @@ void binance_price_watcher(net::io_context &io_context,
       std::make_shared<binance_spot_price_stream_t>(io_context, ssl_context);
   auto futures =
       std::make_shared<binance_futures_price_stream_t>(io_context, ssl_context);
-  spdlog::info("Running binance spot and futures");
 
   spot->run();
   futures->run();
-
-//   std::this_thread::sleep_for(std::chrono::seconds(5));
-//  io_context.run();
+  io_context.run();
 }
 
 } // namespace jordan
