@@ -231,8 +231,6 @@ void kucoin_price_stream_t::negotiate_websocket_connection() {
 void kucoin_price_stream_t::perform_websocket_handshake() {
   auto const path = m_uri.path() + "?token=" + m_requestToken +
                     "&connectId=" + utils::getRandomString(10);
-  spdlog::info("Path info is sent to: {}", path);
-
   m_sslWebStream->async_handshake(
       m_uri.host(), path, [self = shared_from_this()](auto const errorCode) {
         if (errorCode)
@@ -325,7 +323,6 @@ void kucoin_price_stream_t::send_ticker_subscription() {
 
         if (errCode)
           return self->report_error_and_retry(errCode);
-        self->m_tokensSubscribedFor = true;
         self->wait_for_messages();
       });
 }
@@ -334,6 +331,7 @@ void kucoin_price_stream_t::report_error_and_retry(beast::error_code const ec) {
   spdlog::error(ec.message());
   m_tradedInstruments.clear();
   reset_ping_timer();
+  reset_counter();
 
   // wait a bit and then retry
   std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -343,7 +341,12 @@ void kucoin_price_stream_t::report_error_and_retry(beast::error_code const ec) {
 // ===================================================
 kucoin_futures_price_stream_t::kucoin_futures_price_stream_t(
     net::io_context &ioContext, ssl::context &sslContext)
-    : kucoin_price_stream_t(ioContext, sslContext, trade_type_e::futures) {}
+    : kucoin_price_stream_t(ioContext, sslContext, trade_type_e::futures),
+      m_tokenCounter(0) {}
+
+void kucoin_futures_price_stream_t::reset_counter() {
+  m_tokenCounter = m_tokensSubscribedFor = false;
+}
 
 void kucoin_futures_price_stream_t::on_instruments_received(
     std::string const &str) {
@@ -373,15 +376,22 @@ void kucoin_futures_price_stream_t::on_instruments_received(
   }
 }
 
-std::string kucoin_futures_price_stream_t::get_subscription_json() const {
-  // TODO: Subscribe to all tokens instead of putting a 100 tokens cap on it
+std::string kucoin_futures_price_stream_t::get_subscription_json() {
   std::vector<instrument_type_t> const tokenList(m_tradedInstruments.cbegin(),
                                                  m_tradedInstruments.cend());
   std::ostringstream ss;
-  auto const count = std::min((size_t)99, tokenList.size() - 1);
-  for (size_t i = 0; i < count; ++i)
-    ss << tokenList[i].name << ",";
-  ss << tokenList.back().name;
+  auto const size = m_tradedInstruments.size();
+  auto const counter = (std::min)(size_t(100), size - m_tokenCounter);
+
+  for (size_t i = 0; i < counter; ++i) {
+    ss << tokenList[i + m_tokenCounter].name;
+    if (i < (counter - 1))
+      ss << ",";
+  }
+
+  m_tokenCounter += counter;
+  if (m_tokenCounter == size)
+    m_tokensSubscribedFor = true;
 
   json::object_t obj;
   obj["id"] = utils::getRandomInteger();
@@ -425,12 +435,14 @@ void kucoin_spot_price_stream_t::on_instruments_received(
   }
 }
 
-std::string kucoin_spot_price_stream_t::get_subscription_json() const {
+std::string kucoin_spot_price_stream_t::get_subscription_json() {
   json::object_t obj;
   obj["id"] = utils::getRandomInteger();
   obj["type"] = "subscribe";
   obj["topic"] = "/market/ticker:all";
   obj["response"] = true;
+
+  m_tokensSubscribedFor = true;
   return json(obj).dump();
 }
 

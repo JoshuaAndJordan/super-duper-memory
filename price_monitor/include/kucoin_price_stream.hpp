@@ -59,7 +59,6 @@ class kucoin_price_stream_t
   std::vector<instance_server_data_t> m_instanceServers;
   uri_t m_uri;
   trade_type_e const m_tradeType;
-  bool m_tokensSubscribedFor = false;
 
 public:
   kucoin_price_stream_t(net::io_context &ioContext, ssl::context &sslContext,
@@ -69,11 +68,13 @@ public:
 
 protected:
   std::set<instrument_type_t> &m_tradedInstruments;
+  bool m_tokensSubscribedFor = false;
 
+  virtual void reset_counter() { m_tokensSubscribedFor = false; }
   virtual std::string rest_api_host() const = 0;
   virtual std::string rest_api_service() const = 0;
   virtual std::string rest_api_target() const = 0;
-  virtual std::string get_subscription_json() const = 0;
+  virtual std::string get_subscription_json() = 0;
   virtual void on_instruments_received(std::string const &) = 0;
 
 private:
@@ -90,7 +91,6 @@ private:
   void perform_websocket_handshake();
   void wait_for_messages();
   void send_ticker_subscription();
-  // void process_pushed_tickers_data(json::array_t const &);
   void interpret_generic_messages();
   void on_token_obtained(std::string const &token);
 };
@@ -106,10 +106,12 @@ public:
   }
 
   void on_instruments_received(std::string const &) override;
-  std::string get_subscription_json() const override;
+  std::string get_subscription_json() override;
 };
 
 class kucoin_futures_price_stream_t : public kucoin_price_stream_t {
+  size_t m_tokenCounter;
+
 public:
   kucoin_futures_price_stream_t(net::io_context &, ssl::context &);
   std::string rest_api_host() const override {
@@ -120,6 +122,7 @@ public:
     return "/api/v1/contracts/active";
   }
   void on_instruments_received(std::string const &) override;
-  std::string get_subscription_json() const override;
+  std::string get_subscription_json() override;
+  void reset_counter() override;
 };
 } // namespace jordan
