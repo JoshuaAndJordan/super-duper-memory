@@ -15,9 +15,7 @@ namespace jordan {
 // all functions here are implemented in each exchanges' prices source
 void binance_price_watcher(net::io_context &, ssl::context &);
 void okexchange_price_watcher(net::io_context &, ssl::context &);
-
-// to be implemented
-void kucoin_price_watcher(net::io_context &, ssl::context &) {}
+void kucoin_price_watcher(net::io_context &, ssl::context &);
 } // namespace jordan
 
 int main(int argc, char *argv[]) {
@@ -41,19 +39,19 @@ int main(int argc, char *argv[]) {
   std::thread binanceWatcher{[&ioContext, &sslContext] {
     jordan::binance_price_watcher(ioContext, sslContext);
   }};
-  
-  std::thread kucoinWatcher{[&ioContext, &sslContext] {
-    jordan::kucoin_price_watcher(ioContext, sslContext);
-  }};
 
   std::thread okWatcher{[&ioContext, &sslContext] {
     jordan::okexchange_price_watcher(ioContext, sslContext);
   }};
 
+  std::thread kucoinWatcher{[&ioContext, &sslContext] {
+    jordan::kucoin_price_watcher(ioContext, sslContext);
+  }};
+
   // wait a bit for all tasks to start up and have async "actions" lined up
   binanceWatcher.join();
-  kucoinWatcher.join();
   okWatcher.join();
+  kucoinWatcher.join();
 
   ioContext.run();
 

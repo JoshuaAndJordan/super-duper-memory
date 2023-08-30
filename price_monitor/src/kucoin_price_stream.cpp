@@ -5,49 +5,70 @@
 
 namespace jordan {
 
-double kucoin_get_coin_price(std::string_view const str, bool const isSpot) {
+instrument_type_t get_instrument_from_json(std::string_view const str,
+                                           bool const isSpot) {
   json::object_t const jsonObject = json::parse(str);
-  auto iter = jsonObject.find("data");
-  if (iter == jsonObject.end() || !iter->second.is_object())
-    return -1.0;
+  auto dataIter = jsonObject.find("data");
+  if (dataIter == jsonObject.end() || !dataIter->second.is_object())
+    return {};
 
-  auto const dataObject = iter->second.get<json::object_t>();
+  auto const dataObject = dataIter->second.get<json::object_t>();
+  instrument_type_t inst;
+
   if (isSpot) {
-    auto const priceIter = dataObject.find("price");
+    auto subjectIter = jsonObject.find("subject");
+    if (subjectIter == jsonObject.end() || !subjectIter->second.is_string())
+      return {};
+    inst.name = subjectIter->second.get<json::string_t>();
+    auto priceIter = dataObject.find("price");
     if (priceIter == dataObject.end() || !priceIter->second.is_string()) {
       assert(false);
-      return -1.0;
+      return {};
     }
-    return std::stod(priceIter->second.get<json::string_t>());
   } else {
-    auto const priceIter = dataObject.find("lastTradePrice");
-    if (priceIter == dataObject.end() || !priceIter->second.is_string()) {
+    auto symbolIter = dataObject.find("symbol");
+    if (symbolIter == dataObject.end() || !symbolIter->second.is_string())
+      return {};
+    inst.name = symbolIter->second.get<json::string_t>();
+    auto bestBidIter = dataObject.find("bestBidPrice");
+    auto bestAskIter = dataObject.find("bestAskPrice");
+    if (bestAskIter == dataObject.end() || bestBidIter == dataObject.end() ||
+        !(bestBidIter->second.is_string() && bestAskIter->second.is_string())) {
       assert(false);
-      return -1.0;
+      return {};
     }
-    return std::stod(priceIter->second.get<json::string_t>());
+    auto const bidPrice = std::stod(bestBidIter->second.get<json::string_t>()),
+               askPrice = std::stod(bestAskIter->second.get<json::string_t>());
+    inst.current_price = (bidPrice + askPrice) / 2.0;
   }
+  return inst;
 }
 
-kucoin_price_stream_t::kucoin_price_stream_t(
-    net::io_context &ioContext, ssl::context &sslContext,
-    std::set<instrument_type_t> &tradedInstruments,
-    trade_type_e const tradeType)
+kucoin_price_stream_t::kucoin_price_stream_t(net::io_context &ioContext,
+                                             ssl::context &sslContext,
+                                             trade_type_e const tradeType)
     : m_ioContext(ioContext), m_sslContext(sslContext), m_tradeType(tradeType),
-      m_apiHost(rest_api_host()), m_apiService(rest_api_service()),
-      m_tradedInstruments(tradedInstruments) {}
+      m_tradedInstruments(
+          instrument_sink_t::get_all_listed_instruments()[exchange_e::kucoin]
+                                                         [tradeType]) {
+  m_tradedInstruments.clear();
+}
 
 void kucoin_price_stream_t::rest_api_initiate_connection() {
+  if (!m_tradedInstruments.empty())
+    return rest_api_obtain_token();
+
   m_resolver.emplace(m_ioContext);
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
+  m_tokensSubscribedFor = false;
 
   auto onError = [self = shared_from_this()](beast::error_code const ec) {
-    spdlog::error("KuCoin -> '{}' gave this error: {}", self->m_tradeType,
+    spdlog::error("KuCoin -> '{}' gave this error: {}", (int)self->m_tradeType,
                   ec.message());
   };
 
   auto onSuccess = [self = shared_from_this()](std::string const &data) {
-    self->on_instruments_received(data);
+    self->on_instruments_received(data); // virtual function
     self->rest_api_obtain_token();
   };
 
@@ -59,9 +80,18 @@ void kucoin_price_stream_t::rest_api_initiate_connection() {
   m_httpClient->run();
 }
 
+void kucoin_price_stream_t::run() {
+  m_apiHost = rest_api_host();
+  m_apiService = rest_api_service();
+  rest_api_initiate_connection();
+}
+
 void kucoin_price_stream_t::rest_api_obtain_token() {
+  m_resolver.emplace(m_ioContext);
+  m_sslWebStream.emplace(m_ioContext, m_sslContext);
+
   auto onError = [self = shared_from_this()](beast::error_code const ec) {
-    spdlog::error("KuCoin -> '{}' gave this error: {}", self->m_tradeType,
+    spdlog::error("KuCoin -> '{}' gave this error: {}", (int)self->m_tradeType,
                   ec.message());
   };
 
@@ -72,7 +102,7 @@ void kucoin_price_stream_t::rest_api_obtain_token() {
 
   m_httpClient = std::make_unique<https_rest_api_t>(
       m_ioContext, m_sslContext, m_sslWebStream->next_layer(), *m_resolver,
-      m_apiHost.c_str(), m_apiService.c_str(), rest_api_token_target());
+      m_apiHost.c_str(), m_apiService.c_str(), "/api/v1/bullet-public");
   m_httpClient->set_method(http_method_e::post);
   m_httpClient->set_callbacks(std::move(onError), std::move(onSuccess));
   m_httpClient->run();
@@ -109,25 +139,24 @@ void kucoin_price_stream_t::on_token_obtained(std::string const &str) {
             instanceObject.find("endpoint")->second.get<json::string_t>();
         data.encryptProtocol =
             (int)instanceObject.find("encrypt")->second.get<json::boolean_t>();
-        data.pingIntervalMs = instanceObject.find("pingInterval")
+        data.pingIntervalMs = (int)instanceObject.find("pingInterval")
                                   ->second.get<json::number_integer_t>();
 
-        data.pingTimeoutMs = instanceObject.find("pingTimeout")
+        data.pingTimeoutMs = (int)instanceObject.find("pingTimeout")
                                  ->second.get<json::number_integer_t>();
         m_instanceServers.push_back(std::move(data));
       }
     }
-    if (!m_instanceServers.empty() && !m_requestToken.empty())
-      initiate_websocket_connection();
-
   } catch (std::exception const &e) {
     spdlog::error(e.what());
   }
 }
 
 void kucoin_price_stream_t::initiate_websocket_connection() {
-  if (m_instanceServers.empty() || m_requestToken.empty())
-    return;
+  if (m_instanceServers.empty() || m_requestToken.empty()) {
+    return spdlog::error("ws instanceServers(size): {}, requestToken: {}",
+                         m_instanceServers.size(), m_requestToken);
+  }
 
   // remove all server instances that do not support HTTPS
   m_instanceServers.erase(std::remove_if(m_instanceServers.begin(),
@@ -148,7 +177,7 @@ void kucoin_price_stream_t::initiate_websocket_connection() {
       [self = shared_from_this()](auto const &errorCode,
                                   resolver::results_type const &results) {
         if (errorCode)
-          return spdlog::error(errorCode.message());
+          return self->report_error_and_retry(errorCode);
         self->websocket_connect_to_resolved_names(results);
       });
 }
@@ -157,6 +186,7 @@ void kucoin_price_stream_t::websocket_connect_to_resolved_names(
     resolver::results_type const &resolvedNames) {
   m_resolver.reset();
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
+
   beast::get_lowest_layer(*m_sslWebStream)
       .expires_after(std::chrono::seconds(30));
   beast::get_lowest_layer(*m_sslWebStream)
@@ -165,7 +195,7 @@ void kucoin_price_stream_t::websocket_connect_to_resolved_names(
                          auto const errorCode,
                          resolver::results_type::endpoint_type const &) {
                        if (errorCode)
-                         return spdlog::error(errorCode.message());
+                         return self->report_error_and_retry(errorCode);
                        self->websocket_perform_ssl_handshake();
                      });
 }
@@ -201,18 +231,20 @@ void kucoin_price_stream_t::negotiate_websocket_connection() {
 void kucoin_price_stream_t::perform_websocket_handshake() {
   auto const path = m_uri.path() + "?token=" + m_requestToken +
                     "&connectId=" + utils::getRandomString(10);
+  spdlog::info("Path info is sent to: {}", path);
+
   m_sslWebStream->async_handshake(
       m_uri.host(), path, [self = shared_from_this()](auto const errorCode) {
         if (errorCode)
-          return spdlog::error(errorCode);
-        start_ping_timer();
-        wait_for_messages();
+          return self->report_error_and_retry(errorCode);
+        self->start_ping_timer();
+        self->wait_for_messages();
       });
 }
 
 void kucoin_price_stream_t::reset_ping_timer() {
   if (m_pingTimer) {
-    boost::system::error_code ec;
+    boost::system::error_code ec{};
     m_pingTimer->cancel(ec);
     m_pingTimer.reset();
   }
@@ -221,7 +253,7 @@ void kucoin_price_stream_t::reset_ping_timer() {
 void kucoin_price_stream_t::on_ping_timer_tick(
     boost::system::error_code const &ec) {
   if (ec)
-    return spdlog::error(ec);
+    return spdlog::error(ec.message());
 
   m_sslWebStream->async_ping({}, [self = shared_from_this()](
                                      boost::system::error_code const &) {
@@ -255,39 +287,63 @@ void kucoin_price_stream_t::wait_for_messages() {
       *m_readWriteBuffer,
       [self = shared_from_this()](beast::error_code const errorCode,
                                   std::size_t const) {
-        if (errorCode == net::error::operation_aborted) {
-          return spdlog::error(errorCode);
-        } else if (errorCode) {
-          spdlog::error(errorCode);
-          self->m_sslWebStream.reset();
-          return self->rest_api_initiate_connection();
-        }
+        if (errorCode == net::error::operation_aborted)
+          return spdlog::error(errorCode.message());
+        else if (errorCode)
+          return self->report_error_and_retry(errorCode);
         self->interpret_generic_messages();
       });
 }
 
 void kucoin_price_stream_t::interpret_generic_messages() {
-  char const *bufferCstr =
+  char const *const bufferCstr =
       static_cast<char const *>(m_readWriteBuffer->cdata().data());
   size_t const dataLength = m_readWriteBuffer->size();
-  auto const optPrice =
-      kucoin_get_coin_price(std::string_view(bufferCstr, dataLength),
-                            m_tradeType == trade_type_e::spot);
-  if (optPrice != -1.0)
-    m_priceResult = optPrice;
+  auto const buffer = std::string_view(bufferCstr, dataLength);
+  auto const inst = jordan::get_instrument_from_json(
+      buffer, m_tradeType == trade_type_e::spot);
+  if (!inst.name.empty())
+    m_tradedInstruments.insert(inst);
 
   if (!m_tokensSubscribedFor)
-    return makeSubscription();
-  return waitForMessages();
+    return send_ticker_subscription();
+
+  return wait_for_messages();
+}
+
+void kucoin_price_stream_t::send_ticker_subscription() {
+  if (m_tradedInstruments.empty())
+    return;
+
+  if (m_subscriptionString.empty())
+    m_subscriptionString = get_subscription_json();
+
+  m_sslWebStream->async_write(
+      net::buffer(m_subscriptionString),
+      [self = shared_from_this()](auto const errCode, size_t const) {
+        self->m_subscriptionString.clear();
+
+        if (errCode)
+          return self->report_error_and_retry(errCode);
+        self->m_tokensSubscribedFor = true;
+        self->wait_for_messages();
+      });
+}
+
+void kucoin_price_stream_t::report_error_and_retry(beast::error_code const ec) {
+  spdlog::error(ec.message());
+  m_tradedInstruments.clear();
+  reset_ping_timer();
+
+  // wait a bit and then retry
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+  rest_api_initiate_connection();
 }
 
 // ===================================================
 kucoin_futures_price_stream_t::kucoin_futures_price_stream_t(
     net::io_context &ioContext, ssl::context &sslContext)
-    : kucoin_price_stream_t(ioContext, sslContext,
-                            instrument_sink_t::get_all_listed_instruments()
-                                [exchange_e::kucoin][trade_type_e::futures],
-                            trade_type_e::futures) {}
+    : kucoin_price_stream_t(ioContext, sslContext, trade_type_e::futures) {}
 
 void kucoin_futures_price_stream_t::on_instruments_received(
     std::string const &str) {
@@ -305,8 +361,11 @@ void kucoin_futures_price_stream_t::on_instruments_received(
     for (auto const &tickerItem : tickers) {
       auto const tickerObject = tickerItem.get<json::object_t>();
       data.name = tickerObject.find("symbol")->second.get<json::string_t>();
-      data.current_price = std::stod(
-          tickerObject.find("lastTradePrice")->second.get<json::string_t>());
+      auto const lastPrice = tickerObject.find("lastTradePrice")->second;
+      if (lastPrice.is_number())
+        data.current_price = lastPrice.get<json::number_float_t>();
+      else if (lastPrice.is_string())
+        data.current_price = std::stod(lastPrice.get<json::string_t>());
       m_tradedInstruments.insert(data);
     }
   } catch (std::exception const &e) {
@@ -314,14 +373,28 @@ void kucoin_futures_price_stream_t::on_instruments_received(
   }
 }
 
+std::string kucoin_futures_price_stream_t::get_subscription_json() const {
+  // TODO: Subscribe to all tokens instead of putting a 100 tokens cap on it
+  std::vector<instrument_type_t> const tokenList(m_tradedInstruments.cbegin(),
+                                                 m_tradedInstruments.cend());
+  std::ostringstream ss;
+  auto const count = std::min((size_t)99, tokenList.size() - 1);
+  for (size_t i = 0; i < count; ++i)
+    ss << tokenList[i].name << ",";
+  ss << tokenList.back().name;
+
+  json::object_t obj;
+  obj["id"] = utils::getRandomInteger();
+  obj["type"] = "subscribe";
+  obj["topic"] = "/contractMarket/tickerV2:" + ss.str();
+  obj["response"] = true;
+  return json(obj).dump();
+}
+
 // =====================================================
 kucoin_spot_price_stream_t::kucoin_spot_price_stream_t(
     net::io_context &ioContext, ssl::context &sslContext)
-    : kucoin_price_stream_t(
-          ioContext, sslContext,
-          instrument_sink_t::get_all_listed_instruments()[exchange_e::kucoin]
-                                                         [trade_type_e::spot],
-          trade_type_e::spot) {}
+    : kucoin_price_stream_t(ioContext, sslContext, trade_type_e::spot) {}
 
 void kucoin_spot_price_stream_t::on_instruments_received(
     std::string const &str) {
@@ -335,7 +408,7 @@ void kucoin_spot_price_stream_t::on_instruments_received(
     if (dataIter == rootObject.end() || !dataIter->second.is_object())
       return;
     auto const dataObject = dataIter->second.get<json::object_t>();
-    auto const tickerIter = dataObject.find("tickers");
+    auto const tickerIter = dataObject.find("ticker");
     if (tickerIter == dataObject.end() || !tickerIter->second.is_array())
       return;
     auto const tickers = tickerIter->second.get<json::array_t>();
@@ -350,5 +423,26 @@ void kucoin_spot_price_stream_t::on_instruments_received(
   } catch (std::exception const &e) {
     spdlog::error(e.what());
   }
+}
+
+std::string kucoin_spot_price_stream_t::get_subscription_json() const {
+  json::object_t obj;
+  obj["id"] = utils::getRandomInteger();
+  obj["type"] = "subscribe";
+  obj["topic"] = "/market/ticker:all";
+  obj["response"] = true;
+  return json(obj).dump();
+}
+
+void kucoin_price_watcher(net::io_context &ioContext,
+                          ssl::context &sslContext) {
+  auto spotWatcher =
+      std::make_shared<kucoin_spot_price_stream_t>(ioContext, sslContext);
+  auto futuresWatcher =
+      std::make_shared<kucoin_futures_price_stream_t>(ioContext, sslContext);
+
+  spotWatcher->run();
+  futuresWatcher->run();
+  ioContext.run();
 }
 } // namespace jordan

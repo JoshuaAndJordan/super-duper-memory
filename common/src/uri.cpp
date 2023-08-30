@@ -4,7 +4,7 @@
 
 namespace jordan {
 
-uri_t::uri(std::string const &url_s) { parse(url_s); }
+uri_t::uri_t(std::string const &url_s) { parse(url_s); }
 
 std::string uri_t::target() const { return m_path + "?" + m_query; }
 

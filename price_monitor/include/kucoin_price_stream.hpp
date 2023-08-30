@@ -52,18 +52,20 @@ class kucoin_price_stream_t
   std::optional<beast::flat_buffer> m_readWriteBuffer = std::nullopt;
   std::optional<net::deadline_timer> m_pingTimer;
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
-  trade_type_e const m_tradeType;
-  std::string const m_apiHost;
-  std::string const m_apiService;
+  std::string m_apiHost;
+  std::string m_apiService;
   std::string m_requestToken;
+  std::string m_subscriptionString;
   std::vector<instance_server_data_t> m_instanceServers;
   uri_t m_uri;
+  trade_type_e const m_tradeType;
+  bool m_tokensSubscribedFor = false;
 
 public:
   kucoin_price_stream_t(net::io_context &ioContext, ssl::context &sslContext,
-                        std::set<instrument_type_t> &, trade_type_e const);
+                        trade_type_e const);
   virtual ~kucoin_price_stream_t() = default;
-  void run() { rest_api_initiate_connection(); }
+  void run();
 
 protected:
   std::set<instrument_type_t> &m_tradedInstruments;
@@ -71,7 +73,7 @@ protected:
   virtual std::string rest_api_host() const = 0;
   virtual std::string rest_api_service() const = 0;
   virtual std::string rest_api_target() const = 0;
-  virtual std::string rest_api_token_target() const = 0;
+  virtual std::string get_subscription_json() const = 0;
   virtual void on_instruments_received(std::string const &) = 0;
 
 private:
@@ -87,7 +89,8 @@ private:
   void websocket_connect_to_resolved_names(results_type const &);
   void perform_websocket_handshake();
   void wait_for_messages();
-  void process_pushed_tickers_data(json::array_t const &);
+  void send_ticker_subscription();
+  // void process_pushed_tickers_data(json::array_t const &);
   void interpret_generic_messages();
   void on_token_obtained(std::string const &token);
 };
@@ -95,17 +98,15 @@ private:
 class kucoin_spot_price_stream_t : public kucoin_price_stream_t {
 public:
   kucoin_spot_price_stream_t(net::io_context &, ssl::context &);
+
   std::string rest_api_host() const override { return "api.kucoin.com"; }
   std::string rest_api_service() const override { return "https"; }
   std::string rest_api_target() const override {
     return "/api/v1/market/allTickers";
   }
 
-  std::string rest_api_token_target() const override {
-    return "/api/v1/bullet-public";
-  }
-
   void on_instruments_received(std::string const &) override;
+  std::string get_subscription_json() const override;
 };
 
 class kucoin_futures_price_stream_t : public kucoin_price_stream_t {
@@ -118,7 +119,7 @@ public:
   std::string rest_api_target() const override {
     return "/api/v1/contracts/active";
   }
-  std::string rest_api_token_target() const override { return ""; }
   void on_instruments_received(std::string const &) override;
+  std::string get_subscription_json() const override;
 };
 } // namespace jordan
