@@ -18,8 +18,7 @@ struct instrument_type_t {
   }
 };
 
-class instrument_sink_t {
-public:
+struct instrument_sink_t {
   static auto &get_all_listed_instruments() {
     static std::map<exchange_e,
                     std::map<jordan::trade_type_e, std::set<instrument_type_t>>>

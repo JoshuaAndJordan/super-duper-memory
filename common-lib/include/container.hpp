@@ -4,6 +4,7 @@
 #include <deque>
 #include <list>
 #include <mutex>
+#include <unordered_set>
 
 namespace jordan::utils {
 
@@ -94,11 +95,11 @@ public:
   void append_list(NewContainer &&new_list) {
     using iter_t = typename NewContainer::iterator;
 
-    std::lock_guard<std::mutex> lock_g{mutex_};
-    container_.insert(std::end(container_),
-                      std::move_iterator<iter_t>(std::begin(new_list)),
-                      std::move_iterator<iter_t>(std::end(new_list)));
-    cv_.notify_all();
+    std::lock_guard<std::mutex> lock_g{m_mutex};
+    m_container.insert(std::end(m_container),
+                       std::move_iterator<iter_t>(std::begin(new_list)),
+                       std::move_iterator<iter_t>(std::end(new_list)));
+    m_cv.notify_all();
   }
 };
 

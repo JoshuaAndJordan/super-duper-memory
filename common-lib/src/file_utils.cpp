@@ -1,7 +1,7 @@
 #include "file_utils.hpp"
-#include "config.hpp"
 #include "json_utils.hpp"
 #include <boost/algorithm/string.hpp>
+// #include "config.hpp"
 
 namespace jordan::utils {
 void normalizePaths(std::string &str) {
@@ -44,6 +44,7 @@ bool createFileDirectory(std::filesystem::path const &path) {
   return !ec;
 }
 
+/*
 std::unique_ptr<jordan::db_config_t>
 parseConfigFile(std::string const &filename, std::string const &config_name) {
   auto const file_content_object = read_object_json_file(filename);
@@ -85,5 +86,6 @@ parseConfigFile(std::string const &filename, std::string const &config_name) {
   }
   return nullptr;
 }
+*/
 
 } // namespace jordan::utils

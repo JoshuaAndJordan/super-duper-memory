@@ -4,6 +4,7 @@
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/ssl.hpp>
+#include <map>
 
 namespace jordan {
 namespace net = boost::asio;
@@ -18,6 +19,7 @@ using success_callback_t = std::function<void(std::string const &)>;
 enum class http_method_e {
   get,
   post,
+  put,
 };
 
 class https_rest_api_t {
@@ -33,6 +35,7 @@ class https_rest_api_t {
   std::string const m_target;
 
   std::optional<std::string> m_payload = std::nullopt;
+  std::map<std::string, std::string> m_optHeader;
   http_method_e m_method = http_method_e::get;
 
   std::optional<beast::flat_buffer> m_buffer;
@@ -57,6 +60,9 @@ public:
                    char const *const service, std::string const &target);
 
   inline void set_method(http_method_e const method) { m_method = method; }
+  inline void insert_header(std::string const &key, std::string const &value) {
+    m_optHeader[key] = value;
+  }
 
   void set_payload(std::string const &payload) {
     if (payload.empty())

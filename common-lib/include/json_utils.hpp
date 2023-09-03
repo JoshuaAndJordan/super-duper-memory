@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 #include <optional>
 
 using nlohmann::json;
@@ -23,8 +23,8 @@ T get_json_value(json::object_t const &data, std::string const &key) {
 }
 
 template <typename T>
-void get_object_member(json::object_t const& json_object,
-  std::string const& member, T& result) {
+void get_object_member(json::object_t const &json_object,
+                       std::string const &member, T &result) {
   auto iter = json_object.find(member);
   if (iter == json_object.end())
     throw std::runtime_error(member + " does not exist");
