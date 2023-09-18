@@ -33,7 +33,9 @@
 
 x64/
 .vs/
+.idea/
 Debug/
+cmake-build-debug/
 tests/
 
 *.vcxproj

@@ -29,10 +29,9 @@ okex_price_stream_t::okex_price_stream_t(net::io_context &ioContext,
                                          trade_type_e const tradeType)
     : m_ioContext{ioContext}, m_sslContext{sslContext},
       m_tradedInstruments(
-          instrument_sink_t::get_all_listed_instruments()[exchange_e::okex]
-                                                         [tradeType]),
+          instrument_sink_t::get_all_listed_instruments(exchange_e::okex)),
       m_sslWebStream{}, m_resolver{},
-      m_tradeType(trade_type_to_string(tradeType)) {}
+      m_tradeType(tradeType) {}
 
 void okex_price_stream_t::run() { rest_api_initiate_connection(); }
 
@@ -41,7 +40,8 @@ void okex_price_stream_t::rest_api_initiate_connection() {
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
 
   auto onError = [self = shared_from_this()](beast::error_code const ec) {
-    spdlog::error("OKX -> '{}' gave this error: {}", self->m_tradeType,
+    spdlog::error("OKX -> '{}' gave this error: {}",
+                  trade_type_to_string(self->m_tradeType),
                   ec.message());
     self->report_error_and_retry(ec);
   };
@@ -50,10 +50,11 @@ void okex_price_stream_t::rest_api_initiate_connection() {
     self->rest_api_on_data_received(data);
   };
 
+  auto const tradeTypeStr = trade_type_to_string(m_tradeType);
   m_httpClient = std::make_unique<https_rest_api_t>(
       m_ioContext, m_sslContext, m_sslWebStream->next_layer(), *m_resolver,
       api_host, api_service,
-      "/api/v5/public/instruments?instType=" + m_tradeType);
+      "/api/v5/public/instruments?instType=" + tradeTypeStr);
   m_httpClient->set_callbacks(std::move(onError), std::move(onSuccess));
   m_httpClient->run();
 }
@@ -70,6 +71,7 @@ void okex_price_stream_t::rest_api_on_data_received(std::string const &data) {
 
     m_instruments.clear();
     process_pushed_instruments_data(dataIter->second.get<json::array_t>());
+
     initiate_websocket_connection();
   } catch (std::exception const &e) {
     spdlog::error(e.what());
@@ -174,7 +176,7 @@ void okex_price_stream_t::ticker_subscribe() {
     json::object_t instr_object;
     instr_object["channel"] = "tickers";
     instr_object["instId"] = instr;
-    instrument_list.push_back(instr_object);
+    instrument_list.emplace_back(instr_object);
   }
 
   json::object_t subscribe_object;
@@ -263,14 +265,16 @@ void okex_price_stream_t::process_pushed_instruments_data(
 void okex_price_stream_t::process_pushed_tickers_data(
     json::array_t const &data_list) {
   instrument_type_t data{};
+  data.tradeType = m_tradeType;
+
   for (auto const &data_json : data_list) {
     auto const data_object = data_json.get<json::object_t>();
 
     data.name = data_object.at("instId").get<json::string_t>();
-    data.current_price =
+    data.currentPrice =
         std::stod(data_object.at("last").get<json::string_t>());
     data.open24h = std::stod(data_object.at("sodUtc8").get<json::string_t>());
-    m_tradedInstruments.insert(data);
+    m_tradedInstruments.append(data);
   }
 }
 

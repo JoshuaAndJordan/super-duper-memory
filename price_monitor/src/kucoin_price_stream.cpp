@@ -6,7 +6,7 @@
 namespace jordan {
 
 instrument_type_t get_instrument_from_json(std::string_view const str,
-                                           bool const isSpot) {
+                                           trade_type_e const tradeType) {
   json::object_t const jsonObject = json::parse(str);
   auto dataIter = jsonObject.find("data");
   if (dataIter == jsonObject.end() || !dataIter->second.is_object())
@@ -14,8 +14,9 @@ instrument_type_t get_instrument_from_json(std::string_view const str,
 
   auto const dataObject = dataIter->second.get<json::object_t>();
   instrument_type_t inst;
+  inst.tradeType = tradeType;
 
-  if (isSpot) {
+  if (tradeType == trade_type_e::spot) {
     auto subjectIter = jsonObject.find("subject");
     if (subjectIter == jsonObject.end() || !subjectIter->second.is_string())
       return {};
@@ -39,7 +40,7 @@ instrument_type_t get_instrument_from_json(std::string_view const str,
     }
     auto const bidPrice = std::stod(bestBidIter->second.get<json::string_t>()),
                askPrice = std::stod(bestAskIter->second.get<json::string_t>());
-    inst.current_price = (bidPrice + askPrice) / 2.0;
+    inst.currentPrice = (bidPrice + askPrice) / 2.0;
   }
   return inst;
 }
@@ -49,9 +50,7 @@ kucoin_price_stream_t::kucoin_price_stream_t(net::io_context &ioContext,
                                              trade_type_e const tradeType)
     : m_ioContext(ioContext), m_sslContext(sslContext), m_tradeType(tradeType),
       m_tradedInstruments(
-          instrument_sink_t::get_all_listed_instruments()[exchange_e::kucoin]
-                                                         [tradeType]) {
-  m_tradedInstruments.clear();
+          instrument_sink_t::get_all_listed_instruments(exchange_e::kucoin)) {
 }
 
 void kucoin_price_stream_t::rest_api_initiate_connection() {
@@ -299,9 +298,9 @@ void kucoin_price_stream_t::interpret_generic_messages() {
   size_t const dataLength = m_readWriteBuffer->size();
   auto const buffer = std::string_view(bufferCstr, dataLength);
   auto const inst = jordan::get_instrument_from_json(
-      buffer, m_tradeType == trade_type_e::spot);
+      buffer, m_tradeType);
   if (!inst.name.empty())
-    m_tradedInstruments.insert(inst);
+    m_tradedInstruments.append(inst);
 
   if (!m_tokensSubscribedFor)
     return send_ticker_subscription();
@@ -350,6 +349,8 @@ void kucoin_futures_price_stream_t::reset_counter() {
 
 void kucoin_futures_price_stream_t::on_instruments_received(
     std::string const &str) {
+  m_fInstruments.clear();
+
   try {
     auto const rootObject = json::parse(str).get<json::object_t>();
     auto const codeIter = rootObject.find("code");
@@ -360,16 +361,22 @@ void kucoin_futures_price_stream_t::on_instruments_received(
     if (dataIter == rootObject.end() || !dataIter->second.is_array())
       return;
     auto const tickers = dataIter->second.get<json::array_t>();
+
     instrument_type_t data;
+    data.tradeType = trade_type_e::futures;
+    m_fInstruments.reserve(tickers.size());
+
     for (auto const &tickerItem : tickers) {
       auto const tickerObject = tickerItem.get<json::object_t>();
       data.name = tickerObject.find("symbol")->second.get<json::string_t>();
       auto const lastPrice = tickerObject.find("lastTradePrice")->second;
       if (lastPrice.is_number())
-        data.current_price = lastPrice.get<json::number_float_t>();
+        data.currentPrice = lastPrice.get<json::number_float_t>();
       else if (lastPrice.is_string())
-        data.current_price = std::stod(lastPrice.get<json::string_t>());
-      m_tradedInstruments.insert(data);
+        data.currentPrice = std::stod(lastPrice.get<json::string_t>());
+
+      m_fInstruments.push_back(data);
+      m_tradedInstruments.append(data);
     }
   } catch (std::exception const &e) {
     spdlog::error(e.what());
@@ -377,14 +384,12 @@ void kucoin_futures_price_stream_t::on_instruments_received(
 }
 
 std::string kucoin_futures_price_stream_t::get_subscription_json() {
-  std::vector<instrument_type_t> const tokenList(m_tradedInstruments.cbegin(),
-                                                 m_tradedInstruments.cend());
   std::ostringstream ss;
-  auto const size = m_tradedInstruments.size();
+  auto const size = m_fInstruments.size();
   auto const counter = (std::min)(size_t(100), size - m_tokenCounter);
 
   for (size_t i = 0; i < counter; ++i) {
-    ss << tokenList[i + m_tokenCounter].name;
+    ss << m_fInstruments[i + m_tokenCounter].name;
     if (i < (counter - 1))
       ss << ",";
   }
@@ -423,12 +428,14 @@ void kucoin_spot_price_stream_t::on_instruments_received(
       return;
     auto const tickers = tickerIter->second.get<json::array_t>();
     instrument_type_t data;
+    data.tradeType = trade_type_e::spot;
+
     for (auto const &tickerItem : tickers) {
       auto const tickerObject = tickerItem.get<json::object_t>();
       data.name = tickerObject.find("symbol")->second.get<json::string_t>();
-      data.current_price =
+      data.currentPrice =
           std::stod(tickerObject.find("last")->second.get<json::string_t>());
-      m_tradedInstruments.insert(data);
+      m_tradedInstruments.append(data);
     }
   } catch (std::exception const &e) {
     spdlog::error(e.what());

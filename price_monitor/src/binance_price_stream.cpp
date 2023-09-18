@@ -24,10 +24,8 @@ binance_price_stream_t::binance_price_stream_t(net::io_context &ioContext,
     : m_restApiHost(rest_api_host), m_wsHostname(ws_host),
       m_wsPortNumber(ws_port_number), m_ioContext{ioContext},
       m_sslContext{sslContext},
-      m_tradedInstruments(
-          instrument_sink_t::get_all_listed_instruments()[exchange_e::binance]
-                                                         [tradeType]),
-      m_resolver{}, m_sslWebStream{} {}
+      m_tradedInstruments(instrument_sink_t::get_all_listed_instruments(exchange_e::binance)),
+      m_tradeType(tradeType), m_resolver{}, m_sslWebStream{} {}
 
 void binance_price_stream_t::run() { rest_api_initiate_connection(); }
 
@@ -76,11 +74,11 @@ void binance_price_stream_t::initiate_websocket_connection() {
         if (error_code) {
           return spdlog::error(error_code.message());
         }
-        self->websock_connect_to_resolved_names(results);
+        self->websocket_connect_to_resolved_names(results);
       });
 }
 
-void binance_price_stream_t::websock_connect_to_resolved_names(
+void binance_price_stream_t::websocket_connect_to_resolved_names(
     results_type const &resolved_names) {
   m_resolver.reset();
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
@@ -97,11 +95,11 @@ void binance_price_stream_t::websock_connect_to_resolved_names(
             if (error_code) {
               return spdlog::error(error_code.message());
             }
-            self->websock_perform_ssl_handshake(connected_name);
+            self->websocket_perform_ssl_handshake(connected_name);
           });
 }
 
-void binance_price_stream_t::websock_perform_ssl_handshake(
+void binance_price_stream_t::websocket_perform_ssl_handshake(
     results_type::endpoint_type const &ep) {
   auto const host = fmt::format("{}:{}", m_wsHostname, ep.port());
 
@@ -177,16 +175,13 @@ void binance_price_stream_t::wait_for_messages() {
 
 void binance_price_stream_t::process_pushed_instruments_data(
     json::array_t const &data_list) {
-  std::vector<instrument_type_t> instruments{};
-  instruments.reserve(data_list.size());
   for (auto const &data_json : data_list) {
     auto const data_object = data_json.get<json::object_t>();
     instrument_type_t instrument{};
     instrument.name = data_object.at("symbol").get<json::string_t>();
-    instruments.emplace_back(std::move(instrument));
+    instrument.tradeType = m_tradeType;
+    m_tradedInstruments.append(std::move(instrument));
   }
-
-  m_tradedInstruments.insert(instruments.cbegin(), instruments.cend());
 }
 
 void binance_price_stream_t::interpret_generic_messages() {
@@ -194,8 +189,7 @@ void binance_price_stream_t::interpret_generic_messages() {
   std::string_view const buffer(buffer_cstr, m_buffer->size());
 
   try {
-    auto object_list = json::parse(buffer).get<json::array_t>();
-    process_pushed_tickers_data(std::move(object_list));
+    process_pushed_tickers_data(json::parse(buffer).get<json::array_t>());
   } catch (std::exception const &e) {
     spdlog::error(e.what());
   }
@@ -210,10 +204,10 @@ void binance_price_stream_t::process_pushed_tickers_data(
     auto const data_object = data_json.get<json::object_t>();
     // symbol => BTCDOGE, DOGEUSDT etc
     data.name = data_object.at("s").get<json::string_t>();
-    data.current_price = std::stod(data_object.at("c").get<json::string_t>());
+    data.currentPrice = std::stod(data_object.at("c").get<json::string_t>());
     data.open24h = std::stod(data_object.at("o").get<json::string_t>());
-
-    m_tradedInstruments.insert(std::move(data));
+    data.tradeType = m_tradeType;
+    m_tradedInstruments.append(std::move(data));
   }
 }
 

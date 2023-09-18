@@ -15,7 +15,7 @@ namespace jordan {
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
-namespace websock = beast::websocket;
+namespace websocket = beast::websocket;
 namespace http = beast::http;
 namespace ip = net::ip;
 
@@ -31,10 +31,11 @@ class binance_price_stream_t
   char const *const m_wsPortNumber;
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
-  std::set<instrument_type_t> &m_tradedInstruments;
+  instrument_sink_t::list_t &m_tradedInstruments;
+  trade_type_e const m_tradeType;
 
   std::optional<resolver> m_resolver;
-  std::optional<websock::stream<beast::ssl_stream<beast::tcp_stream>>>
+  std::optional<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>
       m_sslWebStream;
   std::optional<beast::flat_buffer> m_buffer;
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
@@ -44,8 +45,8 @@ private:
   void rest_api_on_data_received(std::string const &);
   void negotiate_websocket_connection();
   void initiate_websocket_connection();
-  void websock_perform_ssl_handshake(results_type::endpoint_type const &);
-  void websock_connect_to_resolved_names(results_type const &);
+  void websocket_perform_ssl_handshake(results_type::endpoint_type const &);
+  void websocket_connect_to_resolved_names(results_type const &);
   void perform_websocket_handshake();
   void wait_for_messages();
   void process_pushed_tickers_data(json::array_t const &);
@@ -57,9 +58,9 @@ protected:
 
 public:
   binance_price_stream_t(net::io_context &, net::ssl::context &,
-                         trade_type_e const, char const *const restApiHost,
-                         char const *const spotWsHost,
-                         char const *const wsPortNumber);
+                         trade_type_e , char const *restApiHost,
+                         char const *spotWsHost,
+                         char const *wsPortNumber);
   virtual ~binance_price_stream_t() = default;
   void run();
 };

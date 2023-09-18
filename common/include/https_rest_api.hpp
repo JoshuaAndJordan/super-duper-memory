@@ -22,6 +22,19 @@ enum class http_method_e {
   put,
 };
 
+struct signed_message_t {
+
+  struct header_value_t {
+    std::string key;
+    std::string value;
+  };
+  header_value_t timestamp;
+  header_value_t apiKey;
+  header_value_t passPhrase;
+  header_value_t secretKey;
+  header_value_t apiVersion;
+};
+
 class https_rest_api_t {
   using resolver = ip::tcp::resolver;
   using results_type = resolver::results_type;
@@ -41,6 +54,7 @@ class https_rest_api_t {
   std::optional<beast::flat_buffer> m_buffer;
   std::optional<http::request<http::string_body>> m_httpRequest;
   std::optional<http::response<http::string_body>> m_httpResponse;
+  std::optional<signed_message_t> m_signedAuth = std::nullopt;
   error_callback_t m_errorCallback;
   success_callback_t m_successCallback;
 
@@ -52,6 +66,7 @@ class https_rest_api_t {
   void rest_api_initiate_connection();
   void rest_api_connect_to_resolved_names(results_type const &);
   void rest_api_perform_ssl_handshake(results_type::endpoint_type const &);
+  void sign_request();
 
 public:
   https_rest_api_t(net::io_context &, net::ssl::context &,
@@ -62,6 +77,10 @@ public:
   inline void set_method(http_method_e const method) { m_method = method; }
   inline void insert_header(std::string const &key, std::string const &value) {
     m_optHeader[key] = value;
+  }
+
+  inline void install_auth(signed_message_t const &msg) {
+    m_signedAuth.emplace(msg);
   }
 
   void set_payload(std::string const &payload) {

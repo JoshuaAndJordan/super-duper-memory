@@ -34,7 +34,7 @@ class okex_price_stream_t
 
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
-  std::set<instrument_type_t> &m_tradedInstruments;
+  instrument_sink_t::list_t &m_tradedInstruments;
   std::set<std::string> m_instruments{};
   std::optional<resolver> m_resolver;
   std::optional<websock::stream<beast::ssl_stream<beast::tcp_stream>>>
@@ -42,7 +42,7 @@ class okex_price_stream_t
   std::optional<std::string> m_sendingBufferText;
   std::optional<beast::flat_buffer> m_buffer;
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
-  std::string const m_tradeType;
+  trade_type_e const m_tradeType;
 
 private:
   void rest_api_initiate_connection();
@@ -58,11 +58,11 @@ private:
   void process_pushed_instruments_data(json::array_t const &);
   void process_pushed_tickers_data(json::array_t const &);
   void ticker_subscribe();
-  void report_error_and_retry(beast::error_code const ec);
+  void report_error_and_retry(beast::error_code);
 
 public:
   okex_price_stream_t(net::io_context &, net::ssl::context &,
-                      trade_type_e const tradeType);
+                      trade_type_e);
   ~okex_price_stream_t() = default;
   void run();
 };

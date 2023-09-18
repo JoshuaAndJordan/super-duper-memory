@@ -1,7 +1,6 @@
 #include "binance_user_stream.hpp"
 
 #include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
 #include <spdlog/spdlog.h>
 
 #include "crypto_utils.hpp"
@@ -12,9 +11,10 @@ char const *const binance_stream_t::rest_api_host = "api.binance.com";
 char const *const binance_stream_t::ws_host = "stream.binance.com";
 char const *const binance_stream_t::ws_port_number = "9443";
 
+
 binance_stream_t::binance_stream_t(net::io_context &ioContext,
                                    net::ssl::context &sslContext,
-                                   user_exchange_info_t const &userInfo)
+                                   account_info_t const &userInfo)
     : m_ioContext(ioContext), m_sslContext(sslContext),
       m_results(binance::account_stream_sink_t::get_account_stream(
           exchange_e::binance)),
@@ -132,7 +132,7 @@ void binance_stream_t::ws_connect_to_names(
 
 void binance_stream_t::ws_perform_ssl_handshake(
     net::ip::tcp::resolver::results_type::endpoint_type const &ep) {
-  auto const host = ws_host + ':' + std::to_string(ep.port());
+  auto const host = fmt::format("{}:{}", ep.port());
 
   // Set a timeout on the operation
   beast::get_lowest_layer(*m_sslWebStream)
@@ -359,4 +359,30 @@ void binance_stream_t::activate_listen_key_keepalive() {
   on_periodic_time_timeout();
 }
 
+void addBinanceAccountStream(
+    std::vector<std::shared_ptr<binance_stream_t>>& list,
+    account_info_t const &task, net::io_context& ioContext,
+    net::ssl::context & sslContext)
+{
+  auto stream = std::make_shared<binance_stream_t>(
+      ioContext, sslContext, task);
+  spdlog::info("Adding binance account stream to list...");
+  list.push_back(std::move(stream));
+  list.back()->run();
+}
+
+void removeBinanceAccountStream(
+    std::vector<std::shared_ptr<binance_stream_t>>& list,
+    account_info_t const & info)
+{
+  auto iter = std::find_if(list.begin(), list.end(),
+                           [&info](std::shared_ptr<binance_stream_t> &s)
+                           {
+                              return s->m_userInfo == info;
+                           });
+  if (iter != list.end()) {
+    (*iter)->stop();
+    list.erase(iter);
+  }
+}
 } // namespace jordan

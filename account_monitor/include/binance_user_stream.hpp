@@ -9,7 +9,7 @@
 #include "https_rest_api.hpp"
 #include "json_utils.hpp"
 #include "stream_results.hpp"
-#include "user_info.hpp"
+#include "account_stream/user_scheduled_task.hpp"
 
 namespace jordan {
 
@@ -36,7 +36,7 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
   utils::waitable_container_t<stream_result_t> &m_results;
-  user_exchange_info_t const m_userInfo;
+  account_info_t const m_userInfo;
 
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
   std::unique_ptr<ip::tcp::resolver> m_resolver = nullptr;
@@ -47,6 +47,9 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
   std::unique_ptr<std::string> m_listenKey = nullptr;
   bool m_isStopped = false;
 
+  friend void removeBinanceAccountStream(
+      std::vector<std::shared_ptr<binance_stream_t>>& list,
+      account_info_t const & info);
 private:
   void rest_api_initiate_connection();
   void rest_api_on_data_received(std::string const &data);
@@ -65,7 +68,7 @@ private:
 
 public:
   binance_stream_t(net::io_context &, net::ssl::context &,
-                   user_exchange_info_t const &userApiKey);
+                   account_info_t const &userApiKey);
   ~binance_stream_t();
   void run();
   void stop();

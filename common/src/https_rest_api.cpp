@@ -1,9 +1,23 @@
 #include "https_rest_api.hpp"
 
+#include "crypto_utils.hpp"
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
 
 namespace jordan {
+
+std::string method_string(http_method_e const method) {
+  switch (method) {
+  case http_method_e::get:
+    return "GET";
+  case http_method_e::post:
+    return "POST";
+  case http_method_e::put:
+    return "PUT";
+  default:
+    return "UNKNOWN";
+  }
+}
 
 https_rest_api_t::https_rest_api_t(
     net::io_context &ioContext, net::ssl::context &sslContext,
@@ -80,7 +94,44 @@ void https_rest_api_t::rest_api_prepare_request() {
     if (m_payload.has_value())
       request.body() = *m_payload;
   }
+
+  // the message requires signing
+  if (m_signedAuth)
+    sign_request();
+
   request.prepare_payload();
+}
+
+void https_rest_api_t::sign_request() {
+  assert(m_signedAuth.has_value());
+
+  auto &request = *m_httpRequest;
+  auto set_header =
+      [&request](signed_message_t::header_value_t const &s) mutable {
+        if (!(s.key.empty() && s.value.empty()))
+          request.set(s.key, s.value);
+      };
+
+  signed_message_t &auth = *m_signedAuth;
+  set_header(auth.apiKey);
+  set_header(auth.timestamp);
+  set_header(auth.apiVersion);
+
+  std::string stringToSign;
+
+  if (m_method == http_method_e::get) {
+    stringToSign = auth.timestamp.value + method_string(m_method) + m_target;
+  } else if (m_payload.has_value()) {
+    stringToSign =
+        auth.timestamp.value + method_string(m_method) + m_target + *m_payload;
+  }
+
+  std::string const signature = utils::base64Encode(
+      utils::hmac256Encode(stringToSign, auth.secretKey.value));
+  std::string const passPhrase = utils::base64Encode(
+      utils::hmac256Encode(auth.passPhrase.value, auth.secretKey.value));
+  request.set(auth.passPhrase.key, passPhrase);
+  request.set(auth.secretKey.key, signature);
 }
 
 void https_rest_api_t::rest_api_send_request() {
