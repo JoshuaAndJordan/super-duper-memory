@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/high_resolution_timer.hpp>
@@ -8,15 +9,15 @@
 
 #include "https_rest_api.hpp"
 #include "json_utils.hpp"
-#include "stream_results.hpp"
+
+#include "account_stream/binance_order_info.hpp"
 #include "account_stream/user_scheduled_task.hpp"
 
 namespace jordan {
-
 namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace http = boost::beast::http;
-namespace websock = beast::websocket;
+namespace websocket = beast::websocket;
 namespace ip = net::ip;
 
 // https://binance-docs.github.io/apidocs/spot/en/#user-data-streams
@@ -26,8 +27,7 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
   using inumber_t = json::number_integer_t;
   using fnumber_t = json::number_float_t;
   using ssl_websocket_stream_t =
-      websock::stream<beast::ssl_stream<beast::tcp_stream>>;
-  using stream_result_t = binance::stream_result_t;
+      websocket::stream<beast::ssl_stream<beast::tcp_stream>>;
 
   static char const *const ws_host;
   static char const *const ws_port_number;
@@ -35,7 +35,7 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
 
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
-  utils::waitable_container_t<stream_result_t> &m_results;
+  binance::binance_result_t& m_results;
   account_info_t const m_userInfo;
 
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
@@ -68,7 +68,7 @@ private:
 
 public:
   binance_stream_t(net::io_context &, net::ssl::context &,
-                   account_info_t const &userApiKey);
+                   account_info_t userApiKey);
   ~binance_stream_t();
   void run();
   void stop();

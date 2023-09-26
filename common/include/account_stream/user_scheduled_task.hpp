@@ -11,8 +11,18 @@ namespace jordan {
     update,
   };
 
+  struct account_monitor_task_result_t {
+    int64_t  userID;
+    int64_t  taskID;
+    task_state_e state;
+#ifdef CRYPTOLOG_USING_MSGPACK
+    MSGPACK_DEFINE(userID, taskID, state);
+#endif
+  };
+
   struct account_scheduled_task_t {
     int64_t userID{};
+    int64_t taskID{};
     std::string apiKey{};
     std::string secretKey{};
     std::string passphrase{};
@@ -21,7 +31,7 @@ namespace jordan {
     task_operation_e operation;
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-    MSGPACK_DEFINE(userID, apiKey, secretKey, passphrase, exchange, tradeType, operation);
+    MSGPACK_DEFINE(userID, taskID, apiKey, secretKey, passphrase, exchange, tradeType, operation);
 #endif
   };
 
@@ -39,5 +49,5 @@ namespace jordan {
 }
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-MSGPACK_ADD_ENUM(jordan::task_operation_e);
+MSGPACK_ADD_ENUM(jordan::task_operation_e)
 #endif

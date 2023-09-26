@@ -34,6 +34,11 @@ struct instrument_sink_t {
     static std::map<exchange_e, list_t> instrumentsSink;
     return instrumentsSink[e];
   }
+
+  static auto& get_unique_instruments(exchange_e const e) {
+    static std::map<exchange_e, utils::locked_set_t<instrument_type_t>> instruments;
+    return instruments[e];
+  }
 };
 
 } // namespace jordan

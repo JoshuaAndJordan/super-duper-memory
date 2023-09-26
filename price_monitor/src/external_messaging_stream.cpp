@@ -4,19 +4,18 @@
 #include <thread>
 #include <msgpack.hpp>
 #include <filesystem>
-#include "commodity.hpp"
+
+#include "price_stream/commodity.hpp"
+#include "string_utils.hpp"
 #include "spdlog/spdlog.h"
 
 namespace jordan {
 
   void data_transmission(zmq::context_t& context, bool &running,
-                         exchange_e const exchange,
-                         std::string const &filename)
+                         std::string const &path,
+                         exchange_e const exchange)
   {
-    static auto const path = "/tmp/cryptolog/stream/price";
-    if (!std::filesystem::exists(path))
-      std::filesystem::create_directories(path);
-
+    auto const filename = utils::exchangesToString(exchange);
     auto const address =
         fmt::format("ipc://{}/{}", path, filename);
     spdlog::info("The address is {}", address);
@@ -54,21 +53,25 @@ namespace jordan {
     int const threadCount = (int)std::thread::hardware_concurrency();
     zmq::context_t context{threadCount};
 
+    static auto const path = "/tmp/cryptolog/stream/price";
+    if (!std::filesystem::exists(path))
+      std::filesystem::create_directories(path);
+
     std::thread binanceDataSender {
       [&context, &running] {
-        data_transmission(context, running, exchange_e::binance, "binance");
+        data_transmission(context, running, path, exchange_e::binance);
       }
     };
 
     std::thread kucoinDataSender {
         [&context, &running]{
-          data_transmission(context, running, exchange_e::kucoin, "kucoin");
+          data_transmission(context, running, path, exchange_e::kucoin);
         }
     };
 
     std::thread okDataSender {
         [&context, &running]{
-          data_transmission(context, running, exchange_e::okex, "okex");
+          data_transmission(context, running, path, exchange_e::okex);
         }
     };
 

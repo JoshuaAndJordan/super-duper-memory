@@ -7,7 +7,7 @@
 #include <boost/beast/ssl/ssl_stream.hpp>
 #include <boost/beast/websocket/stream.hpp>
 
-#include "commodity.hpp"
+#include "price_stream/commodity.hpp"
 #include "json_utils.hpp"
 #include "uri.hpp"
 #include <optional>

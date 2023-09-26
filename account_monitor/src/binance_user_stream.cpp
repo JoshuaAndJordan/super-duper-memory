@@ -1,6 +1,8 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "binance_user_stream.hpp"
 
 #include <boost/beast/http/read.hpp>
+#include <utility>
 #include <spdlog/spdlog.h>
 
 #include "crypto_utils.hpp"
@@ -11,14 +13,12 @@ char const *const binance_stream_t::rest_api_host = "api.binance.com";
 char const *const binance_stream_t::ws_host = "stream.binance.com";
 char const *const binance_stream_t::ws_port_number = "9443";
 
-
 binance_stream_t::binance_stream_t(net::io_context &ioContext,
                                    net::ssl::context &sslContext,
-                                   account_info_t const &userInfo)
+                                   account_info_t userInfo)
     : m_ioContext(ioContext), m_sslContext(sslContext),
-      m_results(binance::account_stream_sink_t::get_account_stream(
-          exchange_e::binance)),
-      m_userInfo(userInfo), m_sslWebStream{}, m_resolver{} {}
+      m_results(binance::account_stream_sink_t::get_account_stream()),
+      m_userInfo(std::move(userInfo)), m_sslWebStream{}, m_resolver{} {}
 
 binance_stream_t::~binance_stream_t() {
   if (m_sslWebStream)
@@ -132,7 +132,7 @@ void binance_stream_t::ws_connect_to_names(
 
 void binance_stream_t::ws_perform_ssl_handshake(
     net::ip::tcp::resolver::results_type::endpoint_type const &ep) {
-  auto const host = fmt::format("{}:{}", ep.port());
+  auto const host = fmt::format("{}:{}", ws_host, ep.port());
 
   // Set a timeout on the operation
   beast::get_lowest_layer(*m_sslWebStream)
@@ -263,7 +263,7 @@ void binance_stream_t::ws_process_orders_execution_report(
   order_info.lastFilledQuantity = get_json_value<string_t>(order_object, "l");
   order_info.commissionAmount = get_json_value<string_t>(order_object, "n");
   order_info.lastExecutedPrice = get_json_value<string_t>(order_object, "L");
-  order_info.cummulativeFilledQuantity =
+  order_info.cumulativeFilledQuantity =
       get_json_value<string_t>(order_object, "z");
 
   order_info.orderID =

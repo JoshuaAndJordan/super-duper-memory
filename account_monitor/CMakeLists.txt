@@ -118,7 +118,9 @@ source_group("Sources" FILES ${SRC_FILES})
 set(HEADERS_FILES
   include/binance_user_stream.hpp
   include/stream_results.hpp
-  include/userstream_keyalive.hpp)
+  include/userstream_keyalive.hpp
+        include/okex_user_stream.hpp
+        src/okex_user_stream.cpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
 

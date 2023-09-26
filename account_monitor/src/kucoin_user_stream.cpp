@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "kucoin_user_stream.hpp"
 
 #include "https_rest_api.hpp"
@@ -341,7 +342,6 @@ std::string kucoin_futures_ua_stream_t::get_stop_order_event_json() {
   return get_private_subscription_object(topic);
 }
 
-
 void addKucoinAccountStream(
     std::vector<std::shared_ptr<kucoin_ua_stream_t>>& list,
     account_info_t const &task, trade_type_e const tradeType,
@@ -356,7 +356,7 @@ void addKucoinAccountStream(
         ioContext, sslContext, task);
   } else return;
 
-  spdlog::info("Adding kucoin account stream to list...");
+  spdlog::info("Adding Kucoin account stream to list...");
   list.push_back(std::move(stream));
   list.back()->run();
 }
@@ -370,6 +370,7 @@ void removeKucoinAccountStream(
                            {
                              return s->m_accountInfo == info;
                            });
+  spdlog::info("Removing Kucoin account stream to list...");
   if (iter != list.end()) {
     (*iter)->stop();
     list.erase(iter);

@@ -13,7 +13,7 @@ namespace net = boost::asio;
 namespace ssl = net::ssl;
 
 namespace jordan {
-// all functions here are implemented in each exchanges' prices source
+// all functions here are implemented in each exchanges' price_stream source
 void binance_price_watcher(net::io_context &, ssl::context &);
 void okexchange_price_watcher(net::io_context &, ssl::context &);
 void kucoin_price_watcher(net::io_context &, ssl::context &);

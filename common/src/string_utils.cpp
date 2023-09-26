@@ -39,6 +39,44 @@ std::string trimCopy(std::string const &s) {
   return s;
 }
 
+std::string decodeUrl(boost::string_view const &encoded_string) {
+  std::string src{};
+  for (size_t i = 0; i < encoded_string.size();) {
+    char const ch = encoded_string[i];
+    if (ch != '%') {
+      src.push_back(ch);
+      ++i;
+    } else {
+      char c1 = encoded_string[i + 1];
+      unsigned int localui1 = 0L;
+      if ('0' <= c1 && c1 <= '9') {
+        localui1 = c1 - '0';
+      } else if ('A' <= c1 && c1 <= 'F') {
+        localui1 = c1 - 'A' + 10;
+      } else if ('a' <= c1 && c1 <= 'f') {
+        localui1 = c1 - 'a' + 10;
+      }
+
+      char c2 = encoded_string[i + 2];
+      unsigned int localui2 = 0L;
+      if ('0' <= c2 && c2 <= '9') {
+        localui2 = c2 - '0';
+      } else if ('A' <= c2 && c2 <= 'F') {
+        localui2 = c2 - 'A' + 10;
+      } else if ('a' <= c2 && c2 <= 'f') {
+        localui2 = c2 - 'a' + 10;
+      }
+
+      unsigned int ui = localui1 * 16 + localui2;
+      src.push_back(ui);
+
+      i += 3;
+    }
+  }
+
+  return src;
+}
+
 void trimString(std::string &str) { trim(str); }
 bool unixTimeToString(std::string &output, std::size_t const t,
                       char const *format) {
@@ -74,10 +112,10 @@ std::string stringListToString(std::vector<boost::string_view> const &vec) {
 
 void hexToChar(std::string &s, std::vector<char> const &data) {
   s.clear();
-  for (unsigned int i = 0; i < data.size(); ++i) {
+  for (char const i : data) {
     char szBuff[3] = "";
     sprintf(szBuff, "%02x",
-            *reinterpret_cast<const unsigned char *>(&data[i]) & 0xff);
+            *reinterpret_cast<const unsigned char *>(&i) & 0xff);
     s += szBuff[0];
     s += szBuff[1];
   }
@@ -186,4 +224,53 @@ void splitStringInto(std::vector<std::string> &result, std::string const &str,
   if (fromPos < str.length())
     result.emplace_back(str.data() + fromPos, str.size() - fromPos);
 }
+
+#ifdef CRYPTOLOG_USING_MSGPACK
+std::string exchangesToString(exchange_e const exchange) {
+  switch(exchange){
+    case exchange_e::binance:
+      return "binance";
+    case exchange_e::kucoin:
+      return "kucoin";
+    case exchange_e::okex:
+      return "okex";
+    default:
+      return "unknown";
+  }
+}
+
+exchange_e stringToExchange(std::string const &exchangeName) {
+  if (exchangeName == "binance")
+    return exchange_e::binance;
+  else if (exchangeName == "kucoin")
+    return exchange_e::kucoin;
+  else if (exchangeName == "okex")
+    return exchange_e::okex;
+  return exchange_e::total;
+}
+
+std::string tradeTypeToString(trade_type_e const tradeType) {
+  switch(tradeType){
+    case trade_type_e::futures:
+      return "futures";
+    case trade_type_e::spot:
+      return "spot";
+    case trade_type_e::swap:
+      return "swap";
+    default:
+      return "";
+  }
+}
+
+trade_type_e stringToTradeType(std::string const &str) {
+  if (str == "futures" || str == "future")
+    return trade_type_e::futures;
+  else if (str == "spot")
+    return trade_type_e::spot;
+  else if (str == "swap")
+    return trade_type_e::swap;
+  return trade_type_e::total;
+}
+#endif
+
 } // namespace jordan::utils

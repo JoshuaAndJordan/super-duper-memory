@@ -117,7 +117,6 @@ source_group("Sources" FILES ${SRC_FILES})
 
 # Header Files
 set(HEADERS_FILES
-        include/commodity.hpp
         include/binance_price_stream.hpp
         include/kucoin_price_stream.hpp
         include/okex_price_stream.hpp

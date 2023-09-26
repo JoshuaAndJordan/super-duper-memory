@@ -173,8 +173,8 @@ if (ENABLE_PRICE_MONITOR)
   add_subdirectory(price_monitor)
 endif()
 
-# if (ENABLE_USER_PROCESS_DELEGATOR)
-#  add_subdirectory(account_process_delegator)
-# endif()
+if (ENABLE_USER_PROCESS_DELEGATOR)
+  add_subdirectory(account_process_delegator)
+endif()
 
 

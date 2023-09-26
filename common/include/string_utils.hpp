@@ -4,6 +4,10 @@
 #include <string_view>
 #include <vector>
 
+#ifdef CRYPTOLOG_USING_MSGPACK
+#include "enumerations.hpp"
+#endif
+
 namespace jordan::utils {
 template <typename Container, typename... IterList>
 bool anyOf(Container const &container, IterList &&...iter_list) {
@@ -27,4 +31,11 @@ void splitStringInto(std::vector<std::string> &, std::string const &text,
                      std::string const &delim);
 void replaceIfStarts(std::string &, std::string const &findText,
                      std::string const &replaceText);
+
+#ifdef CRYPTOLOG_USING_MSGPACK
+  std::string exchangesToString(exchange_e exchange);
+  std::string tradeTypeToString(trade_type_e tradeType);
+  exchange_e stringToExchange(std::string const &exchangeName);
+  trade_type_e stringToTradeType(std::string const &str);
+#endif
 } // namespace jordan::utils

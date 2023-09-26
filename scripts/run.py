@@ -16,8 +16,23 @@ class User(db.Model):
 	username = db.Column(db.String(128), nullable=False, unique=True)
 	address = db.Column(db.String(256), nullable=False, unique=False)
 	password_hash = db.Column(db.String(64), nullable=False, unique=False)
-  social_media = db.relationship('SocialMediaChannel', backref='user')
-  pricing_tasks = db.relationship('AssignedPricingTask', backref='user')
+	social_media = db.relationship('SocialMediaChannel', backref='user')
+	pricing_tasks = db.relationship('AssignedPricingTask', backref='user')
+	account_deleted = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class UserAccountMonitor(db.Model):
+	__tablename__ = 'jd_monitor_accounts'
+	ID = db.Column(db.Integer, primary_key=True, unique=True, index=True)
+	user_id = db.Column(db.Integer, db.ForeignKey('db_users.id'), nullable=False)
+	api_key = db.Column(db.String(256), nullable=False, unique=False)
+	secret_key = db.Column(db.String(256), nullable=False, unique=False)
+	passphrase = db.Column(db.String(128), nullable=False, unique=False)
+	exchange_name = db.Column(db.String(16), nullable=False, unique=False)
+	trade_type = db.Column(db.Integer, nullable=True, unique=False)
+	task_status = db.Column(db.Integer, nullable=False, unique=False)
+	date_added = db.Column(db.DateTime, nullable=False, unique=False)
+	date_updated = db.Column(db.DateTime, nullable=False, unique=False)
 
 
 class Subscription(db.Model):

@@ -8,7 +8,7 @@
 #include <optional>
 #include <set>
 
-#include "commodity.hpp"
+#include "price_stream/commodity.hpp"
 #include "json_utils.hpp"
 
 namespace jordan {

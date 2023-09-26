@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/deadline_timer.hpp>
