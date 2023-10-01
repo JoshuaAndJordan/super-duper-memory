@@ -224,11 +224,11 @@ bool session_t::is_closed() {
 
 void session_t::shutdown_socket() {
   beast::error_code ec{};
-  beast::get_lowest_layer(m_tcpStream)
+  (void)beast::get_lowest_layer(m_tcpStream)
       .socket()
       .shutdown(net::socket_base::shutdown_send, ec);
   ec = {};
-  beast::get_lowest_layer(m_tcpStream).socket().close(ec);
+  (void)beast::get_lowest_layer(m_tcpStream).socket().close(ec);
   beast::get_lowest_layer(m_tcpStream).close();
 }
 

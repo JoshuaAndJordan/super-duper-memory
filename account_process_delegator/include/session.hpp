@@ -81,10 +81,6 @@ struct session_metadata_t {
   time_t loginTime = 0;
 };
 
-template <typename ReturnType, typename... Args> struct decorated_route_t {
-  std::function<ReturnType(Args &&...)> func;
-};
-
 class endpoint_t {
   std::map<std::string, rule_t> endpoints;
   using rule_iterator = std::map<std::string, rule_t>::iterator;
