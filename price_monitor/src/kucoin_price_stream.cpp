@@ -1,9 +1,11 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
+
 #include "kucoin_price_stream.hpp"
 #include "https_rest_api.hpp"
 #include "random_utils.hpp"
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 instrument_type_t get_instrument_from_json(std::string_view const str,
                                            trade_type_e const tradeType) {
@@ -50,8 +52,7 @@ kucoin_price_stream_t::kucoin_price_stream_t(net::io_context &ioContext,
                                              trade_type_e const tradeType)
     : m_ioContext(ioContext), m_sslContext(sslContext), m_tradeType(tradeType),
       m_tradedInstruments(
-          instrument_sink_t::get_all_listed_instruments(exchange_e::kucoin)) {
-}
+          instrument_sink_t::get_all_listed_instruments(exchange_e::kucoin)) {}
 
 void kucoin_price_stream_t::rest_api_initiate_connection() {
   if (!m_tradedInstruments.empty())
@@ -297,8 +298,8 @@ void kucoin_price_stream_t::interpret_generic_messages() {
       static_cast<char const *>(m_readWriteBuffer->cdata().data());
   size_t const dataLength = m_readWriteBuffer->size();
   auto const buffer = std::string_view(bufferCstr, dataLength);
-  auto const inst = jordan::get_instrument_from_json(
-      buffer, m_tradeType);
+  auto const inst =
+      keep_my_journal::get_instrument_from_json(buffer, m_tradeType);
   if (!inst.name.empty())
     m_tradedInstruments.append(inst);
 
@@ -464,4 +465,4 @@ void kucoin_price_watcher(net::io_context &ioContext,
   futuresWatcher->run();
   ioContext.run();
 }
-} // namespace jordan
+} // namespace keep_my_journal

@@ -4,7 +4,7 @@
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
 
-namespace jordan {
+namespace keep_my_journal {
 
 std::string method_string(http_method_e const method) {
   switch (method) {
@@ -163,4 +163,4 @@ void https_rest_api_t::rest_api_on_data_received(beast::error_code const ec) {
   m_successCallback(m_httpResponse->body());
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <nlohmann/json.hpp>
@@ -8,7 +9,7 @@ using nlohmann::json;
 // the freestanding `to_json` functions are used by the JSON library and need
 // to be in the same namespace as the classes
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 
 template <typename T>
 T get_json_value(json::object_t const &data, std::string const &key) {
@@ -32,4 +33,4 @@ void get_object_member(json::object_t const &json_object,
 }
 
 std::optional<json::object_t> read_object_json_file(std::string const &);
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

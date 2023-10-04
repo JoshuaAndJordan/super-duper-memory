@@ -1,9 +1,10 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "binance_price_stream.hpp"
 #include "crypto_utils.hpp"
 #include "https_rest_api.hpp"
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 char const *const binance_spot_price_stream_t::rest_api_host =
     "api.binance.com";
@@ -24,7 +25,8 @@ binance_price_stream_t::binance_price_stream_t(net::io_context &ioContext,
     : m_restApiHost(rest_api_host), m_wsHostname(ws_host),
       m_wsPortNumber(ws_port_number), m_ioContext{ioContext},
       m_sslContext{sslContext},
-      m_tradedInstruments(instrument_sink_t::get_all_listed_instruments(exchange_e::binance)),
+      m_tradedInstruments(
+          instrument_sink_t::get_all_listed_instruments(exchange_e::binance)),
       m_tradeType(tradeType), m_resolver{}, m_sslWebStream{} {}
 
 void binance_price_stream_t::run() { rest_api_initiate_connection(); }
@@ -238,4 +240,4 @@ void binance_price_watcher(net::io_context &io_context,
   io_context.run();
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

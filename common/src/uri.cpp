@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace jordan {
+namespace keep_my_journal {
 
 uri_t::uri_t(std::string const &url_s) { parse(url_s); }
 
@@ -38,4 +38,4 @@ void uri_t::parse(std::string const &url_s) {
   m_query.assign(query_i, url_s.end());
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

@@ -1,8 +1,9 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <string>
 
-namespace jordan {
+namespace keep_my_journal {
 
 class uri_t {
 public:
@@ -22,4 +23,4 @@ private:
   std::string m_query;
 };
 
-} // namespace jordan
+} // namespace keep_my_journal

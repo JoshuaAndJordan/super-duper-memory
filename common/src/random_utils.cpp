@@ -5,7 +5,7 @@
 #pragma warning(disable : 4996)
 #endif
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 std::time_t &proxyFetchInterval() {
   static std::time_t interval_between_fetches{};
   return interval_between_fetches;
@@ -34,4 +34,4 @@ std::string getRandomString(std::size_t const length) {
     result.push_back(getRandomChar());
   return result;
 }
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

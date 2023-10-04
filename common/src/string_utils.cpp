@@ -4,7 +4,7 @@
 #include <openssl/md5.h>
 #include <sstream>
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 void ltrim(std::string &s) {
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
             return !std::isspace(ch);
@@ -227,15 +227,15 @@ void splitStringInto(std::vector<std::string> &result, std::string const &str,
 
 #ifdef CRYPTOLOG_USING_MSGPACK
 std::string exchangesToString(exchange_e const exchange) {
-  switch(exchange){
-    case exchange_e::binance:
-      return "binance";
-    case exchange_e::kucoin:
-      return "kucoin";
-    case exchange_e::okex:
-      return "okex";
-    default:
-      return "unknown";
+  switch (exchange) {
+  case exchange_e::binance:
+    return "binance";
+  case exchange_e::kucoin:
+    return "kucoin";
+  case exchange_e::okex:
+    return "okex";
+  default:
+    return "unknown";
   }
 }
 
@@ -250,15 +250,15 @@ exchange_e stringToExchange(std::string const &exchangeName) {
 }
 
 std::string tradeTypeToString(trade_type_e const tradeType) {
-  switch(tradeType){
-    case trade_type_e::futures:
-      return "futures";
-    case trade_type_e::spot:
-      return "spot";
-    case trade_type_e::swap:
-      return "swap";
-    default:
-      return "";
+  switch (tradeType) {
+  case trade_type_e::futures:
+    return "futures";
+  case trade_type_e::spot:
+    return "spot";
+  case trade_type_e::swap:
+    return "swap";
+  default:
+    return "";
   }
 }
 
@@ -273,4 +273,4 @@ trade_type_e stringToTradeType(std::string const &str) {
 }
 #endif
 
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

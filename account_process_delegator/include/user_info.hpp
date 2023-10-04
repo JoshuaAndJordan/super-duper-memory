@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <string>
@@ -5,14 +6,14 @@
 
 #include "enumerations.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 
 struct user_exchange_info_t {
-  uint64_t    userID = 0;
+  uint64_t userID = 0;
   std::string apiKey{};
   std::string secretKey{};
   std::string passphrase{};
-  exchange_e  exchange;
+  exchange_e exchange;
 };
 
 struct channel_info_t {
@@ -33,4 +34,4 @@ struct user_registration_data_t {
   std::string address;
   std::string passwordHash;
 };
-} // namespace jordan
+} // namespace keep_my_journal

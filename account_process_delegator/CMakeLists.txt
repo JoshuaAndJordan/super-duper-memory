@@ -108,7 +108,8 @@ set(SRC_FILES
         src/database_connector.cpp
         src/server.cpp
         src/session.cpp
-        src/accounts_watcher.cpp)
+        src/accounts_watcher.cpp
+        src/price_tasks.cpp)
 
 source_group("Sources" FILES ${SRC_FILES})
 
@@ -120,6 +121,7 @@ set(HEADERS_FILES
         include/session.hpp
         include/cli.hpp
         include/user_info.hpp
+        include/price_tasks.hpp
 )
 
 source_group("Headers" FILES ${HEADERS_FILES})

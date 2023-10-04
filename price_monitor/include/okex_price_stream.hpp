@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/ip/tcp.hpp>
@@ -9,10 +10,10 @@
 #include <optional>
 #include <set>
 
-#include "price_stream/commodity.hpp"
 #include "json_utils.hpp"
+#include "price_stream/commodity.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -61,9 +62,8 @@ private:
   void report_error_and_retry(beast::error_code);
 
 public:
-  okex_price_stream_t(net::io_context &, net::ssl::context &,
-                      trade_type_e);
+  okex_price_stream_t(net::io_context &, net::ssl::context &, trade_type_e);
   ~okex_price_stream_t() = default;
   void run();
 };
-} // namespace jordan
+} // namespace keep_my_journal

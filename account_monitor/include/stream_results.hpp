@@ -9,7 +9,7 @@
 #include "container.hpp"
 #include "enumerations.hpp"
 
-namespace jordan::binance {
+namespace keep_my_journal::binance {
 
 struct user_result_request_t {
   std::string accountAlias{};
@@ -17,4 +17,4 @@ struct user_result_request_t {
   std::optional<std::string> endDate{};
 };
 
-} // namespace jordan::binance
+} // namespace keep_my_journal::binance

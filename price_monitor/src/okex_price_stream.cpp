@@ -1,10 +1,11 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "okex_price_stream.hpp"
 
 #include "crypto_utils.hpp"
 #include "https_rest_api.hpp"
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 char const *const okex_price_stream_t::ws_host = "ws.okx.com";
 char const *const okex_price_stream_t::ws_port_number = "8443";
@@ -30,8 +31,7 @@ okex_price_stream_t::okex_price_stream_t(net::io_context &ioContext,
     : m_ioContext{ioContext}, m_sslContext{sslContext},
       m_tradedInstruments(
           instrument_sink_t::get_all_listed_instruments(exchange_e::okex)),
-      m_sslWebStream{}, m_resolver{},
-      m_tradeType(tradeType) {}
+      m_sslWebStream{}, m_resolver{}, m_tradeType(tradeType) {}
 
 void okex_price_stream_t::run() { rest_api_initiate_connection(); }
 
@@ -41,8 +41,7 @@ void okex_price_stream_t::rest_api_initiate_connection() {
 
   auto onError = [self = shared_from_this()](beast::error_code const ec) {
     spdlog::error("OKX -> '{}' gave this error: {}",
-                  trade_type_to_string(self->m_tradeType),
-                  ec.message());
+                  trade_type_to_string(self->m_tradeType), ec.message());
     self->report_error_and_retry(ec);
   };
 
@@ -271,8 +270,7 @@ void okex_price_stream_t::process_pushed_tickers_data(
     auto const data_object = data_json.get<json::object_t>();
 
     data.name = data_object.at("instId").get<json::string_t>();
-    data.currentPrice =
-        std::stod(data_object.at("last").get<json::string_t>());
+    data.currentPrice = std::stod(data_object.at("last").get<json::string_t>());
     data.open24h = std::stod(data_object.at("sodUtc8").get<json::string_t>());
     m_tradedInstruments.append(data);
   }
@@ -296,4 +294,4 @@ void okexchange_price_watcher(net::io_context &ioContext,
   ioContext.run();
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

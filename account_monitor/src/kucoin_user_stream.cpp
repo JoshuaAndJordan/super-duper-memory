@@ -5,7 +5,7 @@
 #include "random_utils.hpp"
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 kucoin_ua_stream_t::kucoin_ua_stream_t(net::io_context &ioContext,
                                        ssl::context &sslContext,
@@ -20,9 +20,7 @@ void kucoin_ua_stream_t::run() {
   rest_api_obtain_token();
 }
 
-void kucoin_ua_stream_t::stop() {
-
-}
+void kucoin_ua_stream_t::stop() {}
 
 void kucoin_ua_stream_t::rest_api_obtain_token() {
   m_resolver.emplace(m_ioContext);
@@ -300,9 +298,9 @@ std::string get_private_subscription_object(std::string const &topic) {
   return json(obj).dump();
 }
 
-kucoin_spot_ua_stream_t::kucoin_spot_ua_stream_t(
-    net::io_context &ioContext, ssl::context &sslContext,
-    account_info_t const &userInfo)
+kucoin_spot_ua_stream_t::kucoin_spot_ua_stream_t(net::io_context &ioContext,
+                                                 ssl::context &sslContext,
+                                                 account_info_t const &userInfo)
     : kucoin_ua_stream_t(ioContext, sslContext, userInfo, trade_type_e::spot) {}
 
 std::string kucoin_spot_ua_stream_t::get_private_order_change_json() {
@@ -343,18 +341,18 @@ std::string kucoin_futures_ua_stream_t::get_stop_order_event_json() {
 }
 
 void addKucoinAccountStream(
-    std::vector<std::shared_ptr<kucoin_ua_stream_t>>& list,
+    std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
     account_info_t const &task, trade_type_e const tradeType,
-    net::io_context& ioContext, net::ssl::context & sslContext)
-{
+    net::io_context &ioContext, net::ssl::context &sslContext) {
   std::shared_ptr<kucoin_ua_stream_t> stream = nullptr;
   if (tradeType == trade_type_e::spot) {
-    stream = std::make_shared<kucoin_spot_ua_stream_t>(
-        ioContext, sslContext, task);
+    stream =
+        std::make_shared<kucoin_spot_ua_stream_t>(ioContext, sslContext, task);
   } else if (tradeType == trade_type_e::futures) {
-    stream = std::make_shared<kucoin_futures_ua_stream_t>(
-        ioContext, sslContext, task);
-  } else return;
+    stream = std::make_shared<kucoin_futures_ua_stream_t>(ioContext, sslContext,
+                                                          task);
+  } else
+    return;
 
   spdlog::info("Adding Kucoin account stream to list...");
   list.push_back(std::move(stream));
@@ -362,12 +360,10 @@ void addKucoinAccountStream(
 }
 
 void removeKucoinAccountStream(
-    std::vector<std::shared_ptr<kucoin_ua_stream_t>>& list,
-    account_info_t const & info)
-{
+    std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
+    account_info_t const &info) {
   auto iter = std::find_if(list.begin(), list.end(),
-                           [&info](std::shared_ptr<kucoin_ua_stream_t> &s)
-                           {
+                           [&info](std::shared_ptr<kucoin_ua_stream_t> &s) {
                              return s->m_accountInfo == info;
                            });
   spdlog::info("Removing Kucoin account stream to list...");
@@ -377,4 +373,4 @@ void removeKucoinAccountStream(
   }
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

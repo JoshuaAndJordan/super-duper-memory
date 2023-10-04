@@ -22,7 +22,7 @@ class context;
 class io_context;
 } // namespace boost::asio
 
-namespace jordan {
+namespace keep_my_journal {
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 namespace beast = boost::beast;
@@ -86,8 +86,9 @@ protected:
   virtual std::string get_stop_order_event_json() = 0;
 
   friend void removeKucoinAccountStream(
-      std::vector<std::shared_ptr<kucoin_ua_stream_t>>& list,
-      account_info_t const & info);
+      std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
+      account_info_t const &info);
+
 private:
   void rest_api_obtain_token();
   void start_ping_timer();
@@ -129,4 +130,4 @@ public:
   std::string get_stop_order_event_json() override;
 };
 
-} // namespace jordan
+} // namespace keep_my_journal

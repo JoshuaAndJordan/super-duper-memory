@@ -1,8 +1,9 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <string>
 
-namespace jordan {
+namespace keep_my_journal {
 
 struct db_config_t {
   std::string dbUsername{};
@@ -17,4 +18,4 @@ struct db_config_t {
              softwareClientVersion == 0);
   }
 };
-} // namespace jordan
+} // namespace keep_my_journal

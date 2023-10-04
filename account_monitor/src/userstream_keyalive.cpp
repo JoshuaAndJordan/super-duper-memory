@@ -5,7 +5,7 @@
 #include <boost/beast/http/write.hpp>
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 char const *const userstream_keyalive_t::host_name = "api.binance.com";
 
@@ -132,4 +132,4 @@ void userstream_keyalive_t::on_data_received() {
   m_buffer.reset();
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

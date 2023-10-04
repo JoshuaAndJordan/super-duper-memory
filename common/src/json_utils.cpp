@@ -1,6 +1,6 @@
 #include "json_utils.hpp"
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 //
 
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

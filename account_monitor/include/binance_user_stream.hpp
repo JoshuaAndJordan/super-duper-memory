@@ -13,7 +13,7 @@
 #include "account_stream/binance_order_info.hpp"
 #include "account_stream/user_scheduled_task.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace http = boost::beast::http;
@@ -35,7 +35,7 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
 
   net::io_context &m_ioContext;
   net::ssl::context &m_sslContext;
-  binance::binance_result_t& m_results;
+  binance::binance_result_t &m_results;
   account_info_t const m_userInfo;
 
   std::unique_ptr<https_rest_api_t> m_httpClient = nullptr;
@@ -48,8 +48,9 @@ class binance_stream_t : public std::enable_shared_from_this<binance_stream_t> {
   bool m_isStopped = false;
 
   friend void removeBinanceAccountStream(
-      std::vector<std::shared_ptr<binance_stream_t>>& list,
-      account_info_t const & info);
+      std::vector<std::shared_ptr<binance_stream_t>> &list,
+      account_info_t const &info);
+
 private:
   void rest_api_initiate_connection();
   void rest_api_on_data_received(std::string const &data);
@@ -73,4 +74,4 @@ public:
   void run();
   void stop();
 };
-} // namespace jordan
+} // namespace keep_my_journal

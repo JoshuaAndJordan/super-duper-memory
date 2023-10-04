@@ -15,7 +15,7 @@ namespace beast = boost::beast;
 namespace http = boost::beast::http;
 namespace ip = net::ip;
 
-namespace jordan {
+namespace keep_my_journal {
 
 /* https://binance-docs.github.io/apidocs/spot/en/#listen-key-spot
  * Keepalive a user data stream to prevent a time out. User data streams will
@@ -57,4 +57,4 @@ public:
   void run();
 };
 
-} // namespace jordan
+} // namespace keep_my_journal

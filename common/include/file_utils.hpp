@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <filesystem>
@@ -5,11 +6,11 @@
 #include <string>
 #include <string_view>
 
-namespace jordan {
+namespace keep_my_journal {
 class db_config_t;
 }
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 void trimString(std::string &);
 
 template <typename T> using filter_t = bool (*)(std::string_view const, T &);
@@ -35,6 +36,6 @@ bool createFileDirectory(std::filesystem::path const &path);
 void normalizePaths(std::string &str);
 void replaceSpecialChars(std::string &str);
 void removeFile(std::string &filename);
-std::unique_ptr<jordan::db_config_t>
+std::unique_ptr<keep_my_journal::db_config_t>
 parseConfigFile(std::string const &filename, std::string const &config_name);
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include "cli.hpp"
@@ -7,7 +8,7 @@
 namespace net = boost::asio;
 namespace beast = boost::beast;
 
-namespace jordan {
+namespace keep_my_journal {
 class server_t : public std::enable_shared_from_this<server_t> {
   using tcp = net::ip::tcp;
 
@@ -22,9 +23,10 @@ public:
   explicit operator bool() const { return m_isOpen; }
 
 private:
-  void onConnectionAccepted(beast::error_code ec,
-                            net::ip::tcp::socket socket);
+  void onConnectionAccepted(beast::error_code ec, net::ip::tcp::socket socket);
   void acceptConnections();
 };
 
-} // namespace jordan
+net::io_context &get_io_context();
+
+} // namespace keep_my_journal

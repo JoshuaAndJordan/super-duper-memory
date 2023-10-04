@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <condition_variable>
@@ -6,7 +7,7 @@
 #include <mutex>
 #include <unordered_set>
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 
 template <typename T> struct locked_set_t {
 private:
@@ -34,7 +35,7 @@ public:
     using iter_t = typename NewContainer::iterator;
     std::lock_guard<std::mutex> lock_g{m_mutex};
     m_set.insert(std::move_iterator<iter_t>(std::begin(container)),
-                std::move_iterator<iter_t>(std::end(container)));
+                 std::move_iterator<iter_t>(std::end(container)));
   }
 
   template <typename Func> std::vector<T> all_items_matching(Func &&filter) {
@@ -62,6 +63,13 @@ public:
     std::lock_guard<std::mutex> lockGuard(m_mutex);
     return std::vector<T>(m_set.cbegin(), m_set.cend());
   }
+
+  std::optional<T> find_item(T const &a) {
+    auto iter = m_set.find(a);
+    if (iter != m_set.cend())
+      return std::nullopt;
+    return *iter;
+  }
 };
 
 template <typename T, typename Container = std::deque<T>>
@@ -76,8 +84,8 @@ public:
       : m_container{std::move(container)} {}
   waitable_container_t() = default;
 
-  waitable_container_t(waitable_container_t &&vec)
- noexcept       : m_mutex{std::move(vec.m_mutex)},
+  waitable_container_t(waitable_container_t &&vec) noexcept
+      : m_mutex{std::move(vec.m_mutex)},
         m_container{std::move(vec.m_container)}, m_cv{std::move(vec.m_cv)} {}
   waitable_container_t &operator=(waitable_container_t &&) = delete;
   waitable_container_t(waitable_container_t const &) = delete;
@@ -89,9 +97,9 @@ public:
     m_container.clear();
   }
 
-  bool empty () {
-      std::lock_guard<std::mutex> lock_g{m_mutex};
-      return m_container.empty();
+  bool empty() {
+    std::lock_guard<std::mutex> lock_g{m_mutex};
+    return m_container.empty();
   }
   T get() {
     std::unique_lock<std::mutex> u_lock{m_mutex};
@@ -154,4 +162,4 @@ public:
     return m_list.empty();
   }
 };
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

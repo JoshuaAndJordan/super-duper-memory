@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/throw_exception.hpp>
@@ -5,7 +6,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace jordan {
+namespace keep_my_journal {
 namespace detail {
 struct static_pool {
   std::size_t size_;
@@ -85,7 +86,9 @@ public:
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
 
-  template <class U> struct rebind { using other = fields_alloc<U>; };
+  template <class U> struct rebind {
+    using other = fields_alloc<U>;
+  };
 
 #if defined(_GLIBCXX_USE_CXX11_ABI) && (_GLIBCXX_USE_CXX11_ABI == 0)
   // Workaround for g++
@@ -128,4 +131,4 @@ public:
     return !(lhs == rhs);
   }
 };
-} // namespace jordan
+} // namespace keep_my_journal

@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/beast/core/tcp_stream.hpp>
@@ -6,7 +7,7 @@
 #include <boost/beast/ssl.hpp>
 #include <map>
 
-namespace jordan {
+namespace keep_my_journal {
 namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace websock = beast::websocket;
@@ -96,4 +97,4 @@ public:
   }
   inline void run() { rest_api_initiate_connection(); }
 };
-} // namespace jordan
+} // namespace keep_my_journal

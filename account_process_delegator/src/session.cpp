@@ -1,3 +1,5 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
+
 #include "session.hpp"
 
 #include <boost/algorithm/string.hpp>
@@ -6,9 +8,9 @@
 #include <filesystem>
 #include <spdlog/spdlog.h>
 
+#include <account_stream/user_scheduled_task.hpp>
 #include <jwt/jwt.hpp>
 #include <price_stream/commodity.hpp>
-#include <account_stream/user_scheduled_task.hpp>
 
 #include "crypto_utils.hpp"
 #include "database_connector.hpp"
@@ -20,9 +22,9 @@
 
 extern std::string BEARER_TOKEN_SECRET_KEY;
 
-namespace jordan {
-  std::optional<account_monitor_task_result_t>
-  queue_monitoring_task(account_scheduled_task_t const &task);
+namespace keep_my_journal {
+std::optional<account_monitor_task_result_t>
+queue_monitoring_task(account_scheduled_task_t const &task);
 
 enum constant_e { RequestBodySize = 1'024 * 1'024 * 50 };
 
@@ -79,10 +81,10 @@ endpoint_t::get_rules(boost::string_view const &target) {
 }
 
 void to_json(json &j, instrument_type_t const &instr) {
-  j = json{{"name", instr.name}, {"price", instr.currentPrice},
+  j = json{{"name", instr.name},
+           {"price", instr.currentPrice},
            {"open24hr", instr.open24h},
-           {"type", utils::tradeTypeToString(instr.tradeType) }
-  };
+           {"type", utils::tradeTypeToString(instr.tradeType)}};
 }
 
 /*
@@ -138,10 +140,9 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   return shared_from_this();
 }
 
-void session_t::http_write(
-    beast::tcp_stream &tcpStream, file_serializer_t &fileSerializer,
-    std::function<void()> func)
-{
+void session_t::http_write(beast::tcp_stream &tcpStream,
+                           file_serializer_t &fileSerializer,
+                           std::function<void()> func) {
   http::async_write(tcpStream, fileSerializer,
                     [callback = std::move(func), self = shared_from_this()](
                         beast::error_code ec, std::size_t const size_written) {
@@ -212,7 +213,8 @@ void session_t::on_data_read(beast::error_code const ec, std::size_t const) {
                            true);
     }
     return error_handler(server_error(ec.message(), error_type_e::ServerError,
-                                      string_request_t{}), true);
+                                      string_request_t{}),
+                         true);
   }
 
   return handle_requests(m_clientRequest->get());
@@ -246,8 +248,8 @@ void session_t::error_handler(string_response_t &&response, bool close_socket) {
   }
 }
 
-void session_t::on_data_written(beast::error_code ec,
-                                [[maybe_unused]] std::size_t const bytes_written) {
+void session_t::on_data_written(
+    beast::error_code ec, [[maybe_unused]] std::size_t const bytes_written) {
   if (ec)
     return spdlog::error(ec.message());
 
@@ -368,8 +370,7 @@ decode_bearer_token(std::string const &token, std::string const &secret_key) {
   }
 }
 
-
-  void session_t::get_file_handler(string_request_t const &request,
+void session_t::get_file_handler(string_request_t const &request,
                                  url_query_t const &optional_query) {
   auto const id_iter = optional_query.find("id");
   if (id_iter == optional_query.cend())
@@ -404,12 +405,13 @@ void session_t::get_trading_pairs_handler(string_request_t const &request,
   auto const exchange = utils::stringToExchange(
       boost::to_lower_copy(exchange_iter->second.to_string()));
 
-  auto const names = instrument_sink_t::get_unique_instruments(exchange)
-      .to_list();
+  auto const names =
+      instrument_sink_t::get_unique_instruments(exchange).to_list();
   return send_response(json_success(names, request));
 }
 
-void session_t::monitor_user_account(string_request_t const &request, url_query_t const &) {
+void session_t::monitor_user_account(string_request_t const &request,
+                                     url_query_t const &) {
   try {
     auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
     auto const exchangeIter = jsonRoot.find("exchange");
@@ -418,35 +420,37 @@ void session_t::monitor_user_account(string_request_t const &request, url_query_
     auto const apiKeyIter = jsonRoot.find("api_key");
     auto const userIDIter = jsonRoot.find("user_id");
     auto const tradeTypeIter = jsonRoot.find("trade_type");
-    if (!utils::anyOf(jsonRoot, tradeTypeIter, exchangeIter,
-                      userIDIter, secretKeyIter, passphraseIter, apiKeyIter))
+    if (!utils::anyOf(jsonRoot, tradeTypeIter, exchangeIter, userIDIter,
+                      secretKeyIter, passphraseIter, apiKeyIter))
       throw std::runtime_error("exchange/secret_key/passphrase missing");
 
-    account_scheduled_task_t task {};
-    task.exchange = utils::stringToExchange(
-        exchangeIter->second.get<json::string_t>());
-    task.tradeType = utils::stringToTradeType(
-        tradeTypeIter->second.get<json::string_t>());
+    account_scheduled_task_t task{};
+    task.exchange =
+        utils::stringToExchange(exchangeIter->second.get<json::string_t>());
+    task.tradeType =
+        utils::stringToTradeType(tradeTypeIter->second.get<json::string_t>());
 
     if (task.exchange == exchange_e::total)
       return error_handler(bad_request("Invalid exchange specified", request));
 
     // trade type is only necessary for a kucoin account
-    if (task.exchange == exchange_e::kucoin && task.tradeType == trade_type_e::total)
-    {
-      return error_handler(bad_request("Invalid trade type specified for kucoin data", request));
+    if (task.exchange == exchange_e::kucoin &&
+        task.tradeType == trade_type_e::total) {
+      return error_handler(
+          bad_request("Invalid trade type specified for kucoin data", request));
     }
 
     task.userID = userIDIter->second.get<json::number_integer_t>();
     task.passphrase = passphraseIter->second.get<json::string_t>();
-    task.secretKey = secretKeyIter->second.get<json::string_t >();
+    task.secretKey = secretKeyIter->second.get<json::string_t>();
     task.apiKey = apiKeyIter->second.get<json::string_t>();
     task.operation = task_operation_e::add;
 
-    auto& databaseConnector = database_connector_t::s_get_db_connector();
+    auto &databaseConnector = database_connector_t::s_get_db_connector();
     task.taskID = databaseConnector->add_new_monitor_task(task);
     if (task.taskID < 0) {
-      auto const errorMessage = "an error prevented this task from being added to the DB";
+      auto const errorMessage =
+          "an error prevented this task from being added to the DB";
       return error_handler(bad_request(errorMessage, request));
     }
 
@@ -456,8 +460,9 @@ void session_t::monitor_user_account(string_request_t const &request, url_query_
         spdlog::error("I was unable to remove the task with ID {} and user {}",
                       task.taskID, task.userID);
       }
-      return error_handler(server_error("there was a problem scheduling this task",
-                                        error_type_e::ServerError, request));
+      return error_handler(
+          server_error("there was a problem scheduling this task",
+                       error_type_e::ServerError, request));
     }
 
     json::object_t jsonObject;
@@ -501,8 +506,6 @@ void session_t::scheduled_price_job_handler(string_request_t const &request,
 
 void session_t::add_new_pricing_tasks(string_request_t const &request,
                                       url_query_t const &query) {
-  auto &scheduled_job_list = request_handler_t::get_all_scheduled_tasks();
-
   try {
     auto const json_root = json::parse(request.body()).get<json::object_t>();
     std::string global_request_id{};
@@ -713,11 +716,8 @@ bool session_t::is_validated_user(string_request_t const &request) {
 
 void session_t::get_user_jobs_handler(string_request_t const &request,
                                       url_query_t const &) {
-  static std::vector<task_state_e> const statuses {
-      task_state_e::initiated,
-      task_state_e::running,
-      task_state_e::stopped
-  };
+  static std::vector<task_state_e> const statuses{
+      task_state_e::initiated, task_state_e::running, task_state_e::stopped};
   auto &database_connector = database_connector_t::s_get_db_connector();
   auto task_list =
       database_connector->get_users_tasks(statuses, m_currentUsername);
@@ -844,4 +844,4 @@ session_t::split_optional_queries(boost::string_view const &optional_query) {
   return result;
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

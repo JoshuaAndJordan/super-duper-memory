@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/utility/string_view.hpp>
@@ -8,7 +9,7 @@
 #include "enumerations.hpp"
 #endif
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 template <typename Container, typename... IterList>
 bool anyOf(Container const &container, IterList &&...iter_list) {
   return (... || (std::cend(container) == iter_list));
@@ -33,9 +34,9 @@ void replaceIfStarts(std::string &, std::string const &findText,
                      std::string const &replaceText);
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-  std::string exchangesToString(exchange_e exchange);
-  std::string tradeTypeToString(trade_type_e tradeType);
-  exchange_e stringToExchange(std::string const &exchangeName);
-  trade_type_e stringToTradeType(std::string const &str);
+std::string exchangesToString(exchange_e exchange);
+std::string tradeTypeToString(trade_type_e tradeType);
+exchange_e stringToExchange(std::string const &exchangeName);
+trade_type_e stringToTradeType(std::string const &str);
 #endif
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

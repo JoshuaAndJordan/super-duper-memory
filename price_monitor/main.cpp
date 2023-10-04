@@ -1,8 +1,10 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/ssl/context.hpp>
 
 #include <cstdlib>
 #include <filesystem>
@@ -12,7 +14,7 @@
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 
-namespace jordan {
+namespace keep_my_journal {
 // all functions here are implemented in each exchanges' price_stream source
 void binance_price_watcher(net::io_context &, ssl::context &);
 void okexchange_price_watcher(net::io_context &, ssl::context &);
@@ -22,7 +24,7 @@ void kucoin_price_watcher(net::io_context &, ssl::context &);
 void start_data_transmission(bool &);
 #endif
 
-} // namespace jordan
+} // namespace keep_my_journal
 
 int main(int argc, char *argv[]) {
   unsigned int const native_thread_size = std::thread::hardware_concurrency();
@@ -45,30 +47,30 @@ int main(int argc, char *argv[]) {
   signalSet.add(SIGABRT);
   bool running = true;
 
-  signalSet.async_wait([&ioContext, &running](
-      boost::system::error_code const & error, int const signalNumber) {
-    if (!ioContext.stopped()) {
-      ioContext.stop();
-      running = false;
-    }
-  });
+  signalSet.async_wait(
+      [&ioContext, &running](boost::system::error_code const &error,
+                             int const signalNumber) {
+        if (!ioContext.stopped()) {
+          ioContext.stop();
+          running = false;
+        }
+      });
 
   std::thread binanceWatcher{[&ioContext, &sslContext] {
-    jordan::binance_price_watcher(ioContext, sslContext);
+    keep_my_journal::binance_price_watcher(ioContext, sslContext);
   }};
 
   std::thread okWatcher{[&ioContext, &sslContext] {
-    jordan::okexchange_price_watcher(ioContext, sslContext);
+    keep_my_journal::okexchange_price_watcher(ioContext, sslContext);
   }};
 
   std::thread kucoinWatcher{[&ioContext, &sslContext] {
-    jordan::kucoin_price_watcher(ioContext, sslContext);
+    keep_my_journal::kucoin_price_watcher(ioContext, sslContext);
   }};
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-  std::thread dataTransmitter{ [&running] {
-    jordan::start_data_transmission(running);
-  }};
+  std::thread dataTransmitter{
+      [&running] { keep_my_journal::start_data_transmission(running); }};
 #endif
 
   // wait a bit for all tasks to start up and have async "actions" lined up

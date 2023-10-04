@@ -1,16 +1,17 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "database_connector.hpp"
 
+#include "string_utils.hpp"
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <thread>
-#include "string_utils.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 void log_sql_error(otl_exception const &exception) {
   spdlog::error("SQLError code: {}", exception.code);
   spdlog::error("SQLError stmt: {}", exception.stm_text);
   spdlog::error("SQLError state: {}", (char const *)exception.sqlstate);
-  spdlog::error("SQLError msg: {}", (char const*)exception.msg);
+  spdlog::error("SQLError msg: {}", (char const *)exception.msg);
 }
 
 void otl_datetime_to_string(std::string &result, otl_datetime const &date) {
@@ -167,10 +168,11 @@ bool database_connector_t::add_new_user(user_registration_data_t const &data) {
   return true;
 }
 
-int database_connector_t::add_new_monitor_task(account_scheduled_task_t const &task) {
+int database_connector_t::add_new_monitor_task(
+    account_scheduled_task_t const &task) {
   int insertID = -1;
 
-  std::string todayDate {};
+  std::string todayDate{};
   auto const now = std::time(nullptr);
   if (!utils::unixTimeToString(todayDate, now))
     return insertID;
@@ -181,9 +183,8 @@ int database_connector_t::add_new_monitor_task(account_scheduled_task_t const &t
                   "task_status, date_added, date_updated) VALUES ("
                   "{}, '{}', '{}', '{}', '{}', '{}', {}, '{}', '{}')",
                   task.userID, task.apiKey, task.secretKey, task.passphrase,
-                  utils::exchangesToString(task.exchange),
-                  (int)task.tradeType, (int) task_state_e::initiated,
-                  todayDate, todayDate);
+                  utils::exchangesToString(task.exchange), (int)task.tradeType,
+                  (int)task_state_e::initiated, todayDate, todayDate);
 
   std::lock_guard<std::mutex> lockG(m_dbMutex);
   try {
@@ -204,30 +205,32 @@ bool database_connector_t::change_monitor_task_status(
     int64_t const userID, int const taskID, task_state_e const status) {
   auto const sqlStatement =
       fmt::format("UPDATE jb_monitor_accounts SET task_status={} WHERE "
-                  "userID={} AND taskID={}", (int)status, userID, taskID);
+                  "userID={} AND taskID={}",
+                  (int)status, userID, taskID);
   try {
     otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
                             otl_exception::enabled);
-  } catch(otl_exception const &e) {
+  } catch (otl_exception const &e) {
     log_sql_error(e);
     return false;
   }
   return true;
 }
 
-bool database_connector_t::remove_monitor_task(
-    int64_t const userID, int64_t const taskID) {
+bool database_connector_t::remove_monitor_task(int64_t const userID,
+                                               int64_t const taskID) {
   auto const sqlStatement =
       fmt::format("DELETE FROM jb_monitor_accounts WHERE user_id={} AND "
-                  "taskID={}", userID, taskID);
+                  "taskID={}",
+                  userID, taskID);
   try {
     otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
                             otl_exception::enabled);
-  } catch(otl_exception const &e) {
+  } catch (otl_exception const &e) {
     log_sql_error(e);
     return false;
   }
   return true;
 }
 
-} // namespace jordan
+} // namespace keep_my_journal

@@ -1,10 +1,11 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #ifdef CRYPTOLOG_USING_MSGPACK
 #include <msgpack.hpp>
 #endif
 
-namespace jordan {
+namespace keep_my_journal {
 
 enum class task_state_e : size_t {
   initiated,
@@ -47,13 +48,13 @@ enum class social_channel_e : size_t {
   email,
   none,
 };
-} // namespace jordan
+} // namespace keep_my_journal
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-MSGPACK_ADD_ENUM(jordan::task_state_e);
-MSGPACK_ADD_ENUM(jordan::task_type_e);
-MSGPACK_ADD_ENUM(jordan::trade_direction_e);
-MSGPACK_ADD_ENUM(jordan::trade_type_e);
-MSGPACK_ADD_ENUM(jordan::exchange_e);
-MSGPACK_ADD_ENUM(jordan::social_channel_e);
+MSGPACK_ADD_ENUM(keep_my_journal::task_state_e);
+MSGPACK_ADD_ENUM(keep_my_journal::task_type_e);
+MSGPACK_ADD_ENUM(keep_my_journal::trade_direction_e);
+MSGPACK_ADD_ENUM(keep_my_journal::trade_type_e);
+MSGPACK_ADD_ENUM(keep_my_journal::exchange_e);
+MSGPACK_ADD_ENUM(keep_my_journal::social_channel_e);
 #endif

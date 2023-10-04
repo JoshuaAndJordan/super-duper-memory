@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/deadline_timer.hpp>
@@ -7,12 +8,11 @@
 #include <boost/beast/ssl/ssl_stream.hpp>
 #include <boost/beast/websocket/stream.hpp>
 
-#include "price_stream/commodity.hpp"
 #include "json_utils.hpp"
+#include "price_stream/commodity.hpp"
 #include "uri.hpp"
 #include <optional>
 #include <set>
-
 
 namespace boost::asio {
 namespace ssl {
@@ -21,8 +21,7 @@ class context;
 class io_context;
 } // namespace boost::asio
 
-
-namespace jordan {
+namespace keep_my_journal {
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 namespace beast = boost::beast;
@@ -126,4 +125,4 @@ public:
   std::string get_subscription_json() override;
   void reset_counter() override;
 };
-} // namespace jordan
+} // namespace keep_my_journal

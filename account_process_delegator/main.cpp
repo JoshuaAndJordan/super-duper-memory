@@ -1,8 +1,8 @@
 #include <CLI/CLI11.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <thread>
-#include <boost/asio/signal_set.hpp>
 
 #include "database_connector.hpp"
 #include "file_utils.hpp"
@@ -10,17 +10,20 @@
 
 namespace net = boost::asio;
 
-namespace jordan {
-  void launch_price_watchers(bool& isRunning);
-  void launch_account_monitor_sender(bool &isRunning);
-}
+namespace keep_my_journal {
+void launch_price_watchers(bool &isRunning);
+void launch_account_monitor_sender(bool &isRunning);
+void price_result_watcher(bool &isRunning);
+net::io_context &get_io_context();
+} // namespace keep_my_journal
 
 std::string BEARER_TOKEN_SECRET_KEY;
 
 int main(int argc, char *argv[]) {
-  CLI::App cli_parser{"an asynchronous web server for monitoring crypto price_stream "
-                      "and user information"};
-  jordan::command_line_interface_t args{};
+  CLI::App cli_parser{
+      "an asynchronous web server for monitoring crypto price_stream "
+      "and user information"};
+  keep_my_journal::command_line_interface_t args{};
 
   cli_parser.add_option("-p", args.port, "port to bind server to");
   cli_parser.add_option("-a", args.ip_address, "IP address to use");
@@ -30,14 +33,15 @@ int main(int argc, char *argv[]) {
                         "Launch type(production, development)");
   CLI11_PARSE(cli_parser, argc, argv)
 
-  auto const software_config = jordan::utils::parseConfigFile(
+  auto const software_config = keep_my_journal::utils::parseConfigFile(
       args.database_config_filename, args.launch_type);
   if (!software_config) {
     std::cerr << "Unable to get database configuration values\n";
     return EXIT_FAILURE;
   }
 
-  auto &database_connector = jordan::database_connector_t::s_get_db_connector();
+  auto &database_connector =
+      keep_my_journal::database_connector_t::s_get_db_connector();
   database_connector->set_username(software_config->dbUsername);
   database_connector->set_password(software_config->dbPassword);
   database_connector->set_database_name(software_config->dbDns);
@@ -47,10 +51,9 @@ int main(int argc, char *argv[]) {
 
   BEARER_TOKEN_SECRET_KEY = software_config->jwtSecretKey;
 
-  auto const thread_count = std::thread::hardware_concurrency();
-  net::io_context ioContext{static_cast<int>(thread_count)};
+  auto &ioContext = keep_my_journal::get_io_context();
   auto server_instance =
-      std::make_shared<jordan::server_t>(ioContext, std::move(args));
+      std::make_shared<keep_my_journal::server_t>(ioContext, std::move(args));
   if (!(*server_instance))
     return EXIT_FAILURE;
   server_instance->run();
@@ -64,27 +67,33 @@ int main(int argc, char *argv[]) {
 
   {
     // connect to the price watching process and get the latest price_stream
-    std::thread { [&isRunning]{
-      jordan::launch_price_watchers(isRunning);
+    std::thread{[&isRunning] {
+      keep_my_journal::launch_price_watchers(isRunning);
     }}.detach();
 
     // launch sockets that writes monitoring data to wire
-    std::thread { [&isRunning] {
-      jordan::launch_account_monitor_sender(isRunning);
+    std::thread{[&isRunning] {
+      keep_my_journal::launch_account_monitor_sender(isRunning);
+    }}.detach();
+
+    std::thread{[&isRunning] {
+      keep_my_journal::price_result_watcher(isRunning);
     }}.detach();
   }
 
   net::signal_set signalSet(ioContext, SIGTERM);
   signalSet.add(SIGABRT);
 
-  signalSet.async_wait([&ioContext, &isRunning](
-      boost::system::error_code const & error, int const signalNumber) {
-    if (!ioContext.stopped()) {
-      ioContext.stop();
-      isRunning = false;
-    }
-  });
+  signalSet.async_wait(
+      [&ioContext, &isRunning](boost::system::error_code const &error,
+                               int const signalNumber) {
+        if (!ioContext.stopped()) {
+          ioContext.stop();
+          isRunning = false;
+        }
+      });
 
+  auto const thread_count = std::thread::hardware_concurrency();
   auto const reserved_thread_count = thread_count > 2 ? thread_count - 2 : 1;
   std::vector<std::thread> threads{};
   threads.reserve(reserved_thread_count);

@@ -6,7 +6,7 @@
 #include <openssl/params.h>
 #include <stdexcept>
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 
 std::string base64Encode(std::basic_string<unsigned char> const &bindata) {
   static const char b64_table[65] =
@@ -132,4 +132,4 @@ std::basic_string<unsigned char> hmac256Encode(std::string const &data,
 
   return std::basic_string<unsigned char>(out, len);
 }
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

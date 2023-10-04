@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/ip/tcp.hpp>
@@ -25,12 +26,13 @@
 
 #define JSON_ROUTE_CALLBACK(callback)                                          \
   [self = shared_from_this()] BN_REQUEST_PARAM {                               \
-    if (!self->is_json_request())                                                    \
-      return self->error_handler(bad_request("invalid content-type", request));      \
+    if (!self->is_json_request())                                              \
+      return self->error_handler(                                              \
+          bad_request("invalid content-type", request));                       \
     self->callback(request, optional_query);                                   \
   }
 
-#define AUTH_ROUTE_CALLBACK(callback)                                     \
+#define AUTH_ROUTE_CALLBACK(callback)                                          \
   [self = shared_from_this()] BN_REQUEST_PARAM {                               \
     if (!self->is_validated_user(request))                                     \
       return self->error_handler(permission_denied(request));                  \
@@ -40,7 +42,8 @@
 #define JSON_AUTH_ROUTE_CALLBACK(callback)                                     \
   [self = shared_from_this()] BN_REQUEST_PARAM {                               \
     if (!self->is_json_request())                                              \
-      return self->error_handler(bad_request("invalid content-type", request)); \
+      return self->error_handler(                                              \
+          bad_request("invalid content-type", request));                       \
     if (!self->is_validated_user(request))                                     \
       return self->error_handler(permission_denied(request));                  \
     self->callback(request, optional_query);                                   \
@@ -51,7 +54,7 @@
     self->callback(a, b);                                                      \
   }
 
-namespace jordan {
+namespace keep_my_journal {
 namespace net = boost::asio;
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -87,8 +90,7 @@ class endpoint_t {
 
 public:
   void add_endpoint(std::string const &,
-                    std::initializer_list<http::verb> const &,
-                    callback_t &&);
+                    std::initializer_list<http::verb> const &, callback_t &&);
   std::optional<rule_iterator> get_rules(std::string const &target);
   std::optional<rule_iterator> get_rules(boost::string_view const &target);
 };
@@ -161,9 +163,9 @@ private:
   void http_write(beast::tcp_stream &, file_serializer_t &,
                   std::function<void()>);
   bool extract_bearer_token(string_request_t const &, std::string &);
-  static std::string generate_bearer_token(
-      std::string const &username, time_t current_time,
-      std::string const &secret_key);
+  static std::string generate_bearer_token(std::string const &username,
+                                           time_t current_time,
+                                           std::string const &secret_key);
 
 private:
   static string_response_t json_success(json const &body,
@@ -223,4 +225,4 @@ std::optional<json::object_t>
 decode_bearer_token(std::string const &token, std::string const &secret_key);
 std::string get_alphanum_tablename(std::string);
 
-} // namespace jordan
+} // namespace keep_my_journal

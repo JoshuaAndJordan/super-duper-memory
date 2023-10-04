@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <boost/asio/ip/tcp.hpp>
@@ -8,10 +9,10 @@
 #include <optional>
 #include <set>
 
-#include "price_stream/commodity.hpp"
 #include "json_utils.hpp"
+#include "price_stream/commodity.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -57,9 +58,8 @@ protected:
   virtual std::string rest_api_get_target() const = 0;
 
 public:
-  binance_price_stream_t(net::io_context &, net::ssl::context &,
-                         trade_type_e , char const *restApiHost,
-                         char const *spotWsHost,
+  binance_price_stream_t(net::io_context &, net::ssl::context &, trade_type_e,
+                         char const *restApiHost, char const *spotWsHost,
                          char const *wsPortNumber);
   virtual ~binance_price_stream_t() = default;
   void run();
@@ -89,4 +89,4 @@ public:
   }
 };
 
-} // namespace jordan
+} // namespace keep_my_journal

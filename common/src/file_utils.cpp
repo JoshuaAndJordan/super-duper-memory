@@ -3,7 +3,7 @@
 #include <boost/algorithm/string.hpp>
 // #include "config.hpp"
 
-namespace jordan::utils {
+namespace keep_my_journal::utils {
 void normalizePaths(std::string &str) {
   for (std::string::size_type i = 0; i != str.size(); ++i) {
     if (str[i] == '#') {
@@ -88,4 +88,4 @@ parseConfigFile(std::string const &filename, std::string const &config_name) {
 }
 */
 
-} // namespace jordan::utils
+} // namespace keep_my_journal::utils

@@ -2,13 +2,13 @@
 #include "binance_user_stream.hpp"
 
 #include <boost/beast/http/read.hpp>
-#include <utility>
 #include <spdlog/spdlog.h>
+#include <utility>
 
 #include "crypto_utils.hpp"
 #include "userstream_keyalive.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 char const *const binance_stream_t::rest_api_host = "api.binance.com";
 char const *const binance_stream_t::ws_host = "stream.binance.com";
 char const *const binance_stream_t::ws_port_number = "9443";
@@ -360,29 +360,25 @@ void binance_stream_t::activate_listen_key_keepalive() {
 }
 
 void addBinanceAccountStream(
-    std::vector<std::shared_ptr<binance_stream_t>>& list,
-    account_info_t const &task, net::io_context& ioContext,
-    net::ssl::context & sslContext)
-{
-  auto stream = std::make_shared<binance_stream_t>(
-      ioContext, sslContext, task);
+    std::vector<std::shared_ptr<binance_stream_t>> &list,
+    account_info_t const &task, net::io_context &ioContext,
+    net::ssl::context &sslContext) {
+  auto stream = std::make_shared<binance_stream_t>(ioContext, sslContext, task);
   spdlog::info("Adding binance account stream to list...");
   list.push_back(std::move(stream));
   list.back()->run();
 }
 
 void removeBinanceAccountStream(
-    std::vector<std::shared_ptr<binance_stream_t>>& list,
-    account_info_t const & info)
-{
+    std::vector<std::shared_ptr<binance_stream_t>> &list,
+    account_info_t const &info) {
   auto iter = std::find_if(list.begin(), list.end(),
-                           [&info](std::shared_ptr<binance_stream_t> &s)
-                           {
-                              return s->m_userInfo == info;
+                           [&info](std::shared_ptr<binance_stream_t> &s) {
+                             return s->m_userInfo == info;
                            });
   if (iter != list.end()) {
     (*iter)->stop();
     list.erase(iter);
   }
 }
-} // namespace jordan
+} // namespace keep_my_journal

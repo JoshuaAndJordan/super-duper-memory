@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "server.hpp"
 #include "session.hpp"
 
@@ -5,11 +6,11 @@
 #include <boost/asio/strand.hpp>
 #include <spdlog/spdlog.h>
 
-namespace jordan {
+namespace keep_my_journal {
 
 server_t::server_t(net::io_context &context, command_line_interface_t &&args)
-    : m_ioContext(context),
-      m_acceptor(net::make_strand(m_ioContext)), m_args(std::move(args)) {
+    : m_ioContext(context), m_acceptor(net::make_strand(m_ioContext)),
+      m_args(std::move(args)) {
   beast::error_code ec{}; // used when we don't need to throw all around
   tcp::endpoint endpoint(net::ip::make_address(args.ip_address), args.port);
   m_acceptor.open(endpoint.protocol(), ec);
@@ -58,9 +59,16 @@ void server_t::onConnectionAccepted(beast::error_code const ec,
 void server_t::acceptConnections() {
   m_acceptor.async_accept(
       net::make_strand(m_ioContext),
-      [self = shared_from_this()](beast::error_code const ec, net::ip::tcp::socket socket) {
+      [self = shared_from_this()](beast::error_code const ec,
+                                  net::ip::tcp::socket socket) {
         return self->onConnectionAccepted(ec, std::move(socket));
       });
 }
 
-} // namespace jordan
+net::io_context &get_io_context() {
+  static net::io_context ioContext{
+      static_cast<int>(std::thread::hardware_concurrency())};
+  return ioContext;
+}
+
+} // namespace keep_my_journal

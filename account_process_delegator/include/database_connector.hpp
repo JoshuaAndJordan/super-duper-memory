@@ -1,3 +1,4 @@
+// Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
 #include <memory>
@@ -17,12 +18,12 @@
 #endif
 
 #define OTL_SAFE_EXCEPTION_ON
-#include "otl_v4/otlv4.h"
-#include "db_config.hpp"
-#include "user_info.hpp"
 #include "account_stream/user_scheduled_task.hpp"
+#include "db_config.hpp"
+#include "otl_v4/otlv4.h"
+#include "user_info.hpp"
 
-namespace jordan {
+namespace keep_my_journal {
 
 void log_sql_error(otl_exception const &exception);
 
@@ -50,8 +51,8 @@ public:
   [[nodiscard]] bool is_valid_user(std::string const &username,
                                    std::string const &passwordHash);
   [[nodiscard]] int add_new_monitor_task(account_scheduled_task_t const &);
-  [[nodiscard]] bool change_monitor_task_status(
-      int64_t userID, int taskID, task_state_e);
+  [[nodiscard]] bool change_monitor_task_status(int64_t userID, int taskID,
+                                                task_state_e);
   [[nodiscard]] bool remove_monitor_task(int64_t userID, int64_t taskID);
 };
-} // namespace jordan
+} // namespace keep_my_journal
