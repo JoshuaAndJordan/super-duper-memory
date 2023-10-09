@@ -236,7 +236,7 @@ bool passed_valid_task_check(scheduled_price_task_t &task) {
     task.percentProp->percentage = percentage;
   }
 
-  if (task.timeProp && task.timeProp->timeMS <= 0.0)
+  if (task.timeProp && task.timeProp->timeMS <= 0)
     return false;
 
   if (task.exchange == exchange_e::total ||
@@ -248,18 +248,23 @@ bool passed_valid_task_check(scheduled_price_task_t &task) {
 
 net::io_context &get_io_context();
 
-bool schedule_new_price_task(scheduled_price_task_t &&taskInfo) {
+bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
   if (!passed_valid_task_check(taskInfo))
     return false;
 
   auto &ioContext = get_io_context();
   std::unique_ptr<price_task_t> priceInfo = nullptr;
 
-  if (taskInfo.percentProp)
+  if (taskInfo.percentProp) {
     priceInfo =
         std::make_unique<progress_based_watch_price_t>(ioContext, taskInfo);
-  else
+  } else if (taskInfo.timeProp) {
     priceInfo = std::make_unique<time_based_watch_price_t>(ioContext, taskInfo);
+  }
+
+  if (!priceInfo)
+    return false;
+
   global_price_task_sink_t::get_all_scheduled_tasks().append(
       std::move(priceInfo));
   return true;

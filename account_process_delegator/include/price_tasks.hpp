@@ -12,13 +12,14 @@ namespace net = boost::asio;
 namespace keep_my_journal {
 struct scheduled_price_task_t {
   struct timed_based_property_t {
-    int timeMS{};
+    uint64_t timeMS{};
   };
 
   struct percentage_based_property_t {
     double percentage{};
   };
 
+  int task_id = 0;
   std::vector<std::string> tokens;
   trade_type_e tradeType = trade_type_e::total;
   exchange_e exchange = exchange_e::total;
@@ -68,7 +69,7 @@ public:
 };
 
 class global_price_task_sink_t {
-  friend bool schedule_new_price_task(scheduled_price_task_t &&);
+  friend bool schedule_new_price_task(scheduled_price_task_t);
   friend void price_result_watcher(bool &isRunning);
   static auto &get_all_scheduled_tasks() {
     static utils::waitable_container_t<std::unique_ptr<price_task_t>> tasks;
@@ -76,6 +77,6 @@ class global_price_task_sink_t {
   }
 };
 
-bool schedule_new_price_task(scheduled_price_task_t &&);
+bool schedule_new_price_task(scheduled_price_task_t);
 void send_price_task_result(scheduled_price_task_result_t const &);
 } // namespace keep_my_journal

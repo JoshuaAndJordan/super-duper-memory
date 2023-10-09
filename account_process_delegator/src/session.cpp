@@ -16,6 +16,7 @@
 #include "database_connector.hpp"
 #include "enumerations.hpp"
 #include "json_utils.hpp"
+#include "price_tasks.hpp"
 #include "random_utils.hpp"
 #include "string_utils.hpp"
 #include "user_info.hpp"
@@ -23,10 +24,38 @@
 extern std::string BEARER_TOKEN_SECRET_KEY;
 
 namespace keep_my_journal {
+
 std::optional<account_monitor_task_result_t>
 queue_monitoring_task(account_scheduled_task_t const &task);
 
 enum constant_e { RequestBodySize = 1'024 * 1'024 * 50 };
+
+std::uint64_t milliseconds_from_string(std::string const &duration,
+                                       json::number_integer_t const t) {
+  std::string const durationStr = boost::to_lower_copy(duration);
+  if (durationStr == "minutes" || durationStr == "minute") {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::minutes(t))
+        .count();
+  } else if (durationStr == "seconds" || durationStr == "second") {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::seconds(t))
+        .count();
+  } else if (durationStr == "hours" || durationStr == "hour") {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::hours(t))
+        .count();
+  } else if (durationStr == "days" || durationStr == "day") {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::hours(t * 24))
+        .count();
+  } else if (durationStr == "weeks" || durationStr == "week") {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::hours(t * 24 * 7))
+        .count();
+  }
+  return 0;
+}
 
 std::string get_alphanum_tablename(std::string str) {
   static auto non_alphanum_remover = [](char const ch) {
@@ -87,11 +116,27 @@ void to_json(json &j, instrument_type_t const &instr) {
            {"type", utils::tradeTypeToString(instr.tradeType)}};
 }
 
-/*
-void to_json(json &j, api_key_data_t const &data) {
-  j = json{{"key", data.key}, {"alias", data.alias_for_account}};
+void to_json(json &j, scheduled_price_task_t const &data) {
+  json::object_t obj;
+  obj["task_id"] = data.task_id;
+  obj["exchange"] = utils::exchangesToString(data.exchange);
+  obj["trade_type"] = utils::tradeTypeToString(data.tradeType);
+  obj["symbols"] = data.tokens;
+
+  if (data.timeProp) {
+    obj["intervals"] = std::chrono::duration_cast<std::chrono::seconds>(
+                           std::chrono::milliseconds(data.timeProp->timeMS))
+                           .count();
+    obj["duration"] = "seconds";
+  } else if (data.percentProp) {
+    obj["direction"] = data.percentProp->percentage < 0 ? "down" : "up";
+    obj["percentage"] = std::abs(data.percentProp->percentage);
+  }
+
+  j = obj;
 }
 
+/*
 void to_json(json &j, task_result_t const &item) {
   j = json{{"symbol", item.symbol},
            {"market_price", item.marketPrice},
@@ -125,7 +170,9 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
                               JSON_ROUTE_CALLBACK(register_new_user));
   m_endpointApis.add_endpoint("/login", {verb::post},
                               JSON_ROUTE_CALLBACK(user_login_handler));
-  m_endpointApis.add_endpoint("/pricing_task", {verb::post},
+  m_endpointApis.add_endpoint("/list_pricing_tasks", {verb::get},
+                              AUTH_ROUTE_CALLBACK(list_pricing_tasks));
+  m_endpointApis.add_endpoint("/add_pricing_task", {verb::post},
                               JSON_AUTH_ROUTE_CALLBACK(add_new_pricing_tasks));
   m_endpointApis.add_endpoint("/price", {verb::post},
                               JSON_AUTH_ROUTE_CALLBACK(get_price_handler));
@@ -266,7 +313,7 @@ void session_t::index_page_handler(string_request_t const &request,
 void session_t::register_new_user(string_request_t const &request,
                                   [[maybe_unused]] url_query_t const &query) {
   using utils::get_object_member;
-  jordan::user_registration_data_t registrationData;
+  keep_my_journal::user_registration_data_t registrationData;
 
   try {
     auto const json_object = json::parse(request.body()).get<json::object_t>();
@@ -315,15 +362,17 @@ void session_t::user_login_handler(string_request_t const &request,
     auto const password_hash =
         get_json_value<json::string_t>(login_object, "password_hash");
     auto &database_connector = database_connector_t::s_get_db_connector();
-    if (!database_connector->is_valid_user(username, password_hash)) {
+    auto const user_id =
+        database_connector->is_valid_user(username, password_hash);
+    if (user_id < 0) {
       return error_handler(get_error("invalid username or password",
                                      error_type_e::Unauthorized,
                                      http::status::unauthorized, request));
     }
 
     auto const currentTime = std::time(nullptr);
-    auto const token =
-        generate_bearer_token(username, currentTime, BEARER_TOKEN_SECRET_KEY);
+    auto const token = generate_bearer_token(username, user_id, currentTime,
+                                             BEARER_TOKEN_SECRET_KEY);
     m_bearerTokenMap[token] = session_metadata_t{username, currentTime};
 
     json::object_t result_obj;
@@ -339,6 +388,7 @@ void session_t::user_login_handler(string_request_t const &request,
 }
 
 std::string session_t::generate_bearer_token(std::string const &username,
+                                             int64_t const user_id,
                                              time_t const current_time,
                                              std::string const &secret_key) {
   using jwt::params::algorithm;
@@ -350,10 +400,59 @@ std::string session_t::generate_bearer_token(std::string const &username,
   info_result["login_time"] = std::to_string(current_time);
   info_result["random"] = utils::getRandomString(utils::getRandomInteger());
   info_result["username"] = username;
+  info_result["user_id"] = std::to_string(user_id);
 
   jwt::jwt_object obj{algorithm("HS256"), payload(info_result),
                       secret(secret_key)};
   return obj.signature();
+}
+
+bool session_t::is_validated_user(string_request_t const &request) {
+  std::string token{};
+  if (!extract_bearer_token(request, token))
+    return false;
+
+  auto iter = m_bearerTokenMap.find(token);
+  if (iter == m_bearerTokenMap.end()) {
+    auto const optJsonObject =
+        decode_bearer_token(token, BEARER_TOKEN_SECRET_KEY);
+    if (!optJsonObject.has_value())
+      return false;
+    json::object_t const &jsonObject = *optJsonObject;
+    auto const usernameIter = jsonObject.find("username");
+    auto const hashUsedIter = jsonObject.find("hash_used");
+    auto const loginTimeIter = jsonObject.find("login_time");
+    auto const userIDIter = jsonObject.find("user_id");
+    if (utils::anyElementIsInvalid(jsonObject, usernameIter, hashUsedIter,
+                                   loginTimeIter, userIDIter))
+      return false;
+
+    if (hashUsedIter->second.get<json::string_t>() != "HS256")
+      return false;
+
+    m_sessionData.username = usernameIter->second.get<json::string_t>();
+    m_sessionData.userID = std::stoll(userIDIter->second.get<json::string_t>());
+    m_sessionData.loginTime =
+        std::stoll(loginTimeIter->second.get<json::string_t>());
+    m_bearerTokenMap[token] = m_sessionData;
+  } else {
+    m_sessionData = iter->second;
+  }
+
+  using days_t = std::chrono::duration<int, std::ratio<60 * 60 * 24>>;
+  static auto const twoDays =
+      std::chrono::duration_cast<std::chrono::seconds>(days_t(2)).count();
+  auto const currentTime = std::chrono::steady_clock::now();
+  auto const timeDelta =
+      currentTime.time_since_epoch().count() - m_sessionData.loginTime;
+
+  bool const validSession = timeDelta < twoDays;
+  if (!validSession) {
+    if (iter != m_bearerTokenMap.end())
+      m_bearerTokenMap.erase(iter);
+  }
+
+  return validSession;
 }
 
 std::optional<json::object_t>
@@ -398,9 +497,8 @@ void session_t::get_file_handler(string_request_t const &request,
 void session_t::get_trading_pairs_handler(string_request_t const &request,
                                           url_query_t const &optional_query) {
   auto const exchange_iter = optional_query.find("exchange");
-  if (exchange_iter == optional_query.end()) {
+  if (exchange_iter == optional_query.end())
     return error_handler(bad_request("query `exchange` missing", request));
-  }
 
   auto const exchange = utils::stringToExchange(
       boost::to_lower_copy(exchange_iter->second.to_string()));
@@ -418,10 +516,9 @@ void session_t::monitor_user_account(string_request_t const &request,
     auto const secretKeyIter = jsonRoot.find("secret_key");
     auto const passphraseIter = jsonRoot.find("passphrase");
     auto const apiKeyIter = jsonRoot.find("api_key");
-    auto const userIDIter = jsonRoot.find("user_id");
     auto const tradeTypeIter = jsonRoot.find("trade_type");
-    if (!utils::anyOf(jsonRoot, tradeTypeIter, exchangeIter, userIDIter,
-                      secretKeyIter, passphraseIter, apiKeyIter))
+    if (utils::anyElementIsInvalid(jsonRoot, tradeTypeIter, exchangeIter,
+                                   secretKeyIter, passphraseIter, apiKeyIter))
       throw std::runtime_error("exchange/secret_key/passphrase missing");
 
     account_scheduled_task_t task{};
@@ -440,7 +537,7 @@ void session_t::monitor_user_account(string_request_t const &request,
           bad_request("Invalid trade type specified for kucoin data", request));
     }
 
-    task.userID = userIDIter->second.get<json::number_integer_t>();
+    task.userID = m_sessionData.userID;
     task.passphrase = passphraseIter->second.get<json::string_t>();
     task.secretKey = secretKeyIter->second.get<json::string_t>();
     task.apiKey = apiKeyIter->second.get<json::string_t>();
@@ -505,67 +602,111 @@ void session_t::scheduled_price_job_handler(string_request_t const &request,
 }
 
 void session_t::add_new_pricing_tasks(string_request_t const &request,
-                                      url_query_t const &query) {
+                                      url_query_t const &) {
   try {
     auto const json_root = json::parse(request.body()).get<json::object_t>();
-    std::string global_request_id{};
+    std::string request_id{};
     if (auto const request_id_iter = json_root.find("id");
         json_root.end() != request_id_iter) {
-      global_request_id = request_id_iter->second.get<json::string_t>();
+      request_id = request_id_iter->second.get<json::string_t>();
     }
 
-    std::size_t const current_time = std::time(nullptr);
     auto const json_job_list = json_root.at("contracts").get<json::array_t>();
-    for (auto const &json_item : json_job_list) {
-      auto const json_object = json_item.get<json::object_t>();
-      scheduled_task_t new_task{};
-      new_task.symbol =
-          boost::to_upper_copy(json_object.at("symbol").get<json::string_t>());
-      new_task.columnID =
-          json_object.at("column_id").get<json::number_unsigned_t>();
-      new_task.direction =
-          boost::to_lower_copy(json_object.at("side").get<json::string_t>());
-      new_task.monitorTimeSecs = static_cast<int>(
-          json_object.at("time").get<json::number_integer_t>());
-      new_task.orderPrice = json_object.at("price").get<json::number_float_t>();
-      new_task.quantity = json_object.at("qty").get<json::number_float_t>();
-      new_task.money = json_object.at("money").get<json::number_float_t>();
+    auto &databaseConnector = database_connector_t::s_get_db_connector();
 
-      auto const task_type =
-          json_object.at("task_type").get<json::number_integer_t>();
-      if (task_type > 1) { // task_type == 1, price changes only
-        return error_handler(bad_request("unknown `task_type` found", request));
+    std::vector<int> taskIDs;
+    taskIDs.reserve(json_job_list.size());
+
+    for (size_t i = 0; i < json_job_list.size(); ++i) {
+      auto const &json_object = json_job_list[i].get<json::object_t>();
+      scheduled_price_task_t new_task{};
+
+      auto const symbols = json_object.at("symbols").get<json::array_t>();
+      for (auto const &symbol : symbols) {
+        new_task.tokens.push_back(
+            boost::to_upper_copy(symbol.get<json::string_t>()));
       }
 
-      new_task.forUsername = m_currentUsername;
-      new_task.currentTime = current_time;
-      new_task.status = task_state_e::initiated;
-      new_task.taskType = static_cast<task_type_e>(task_type);
+      new_task.tradeType = utils::stringToTradeType(
+          json_object.at("trade").get<json::string_t>());
+      new_task.exchange = utils::stringToExchange(
+          json_object.at("exchange").get<json::string_t>());
 
-      if (auto request_id_iter = json_object.find("id");
-          request_id_iter != json_object.end()) {
-        new_task.requestID = request_id_iter->second.get<json::string_t>();
-      } else {
-        if (global_request_id.empty())
-          global_request_id = utils::getRandomString(10);
+      auto intervalIter = json_object.find("intervals");
+      auto percentageIter = json_object.find("percentage");
+      std::string extraValue;
 
-        new_task.requestID = global_request_id;
+      if (intervalIter != json_object.end()) {
+        auto durationIter = json_object.find("duration");
+        if (durationIter == json_object.end())
+          return error_handler(bad_request("duration not specified", request));
+        auto const interval =
+            intervalIter->second.get<json::number_integer_t>();
+        auto const duration = durationIter->second.get<json::string_t>();
+        auto const intervalDur = milliseconds_from_string(duration, interval);
+        if (intervalDur == 0)
+          return error_handler(
+              bad_request("something is wrong with the duration", request));
+        new_task.timeProp
+            .emplace<scheduled_price_task_t::timed_based_property_t>({});
+        new_task.timeProp->timeMS = intervalDur;
+        extraValue = duration;
+      } else if (percentageIter != json_object.end()) {
+        auto directionIter = json_object.find("direction");
+        if (directionIter == json_object.end())
+          return error_handler(bad_request("direction not specified", request));
+
+        auto percentage =
+            std::abs(percentageIter->second.get<json::number_float_t>());
+        auto const direction =
+            boost::to_lower_copy(directionIter->second.get<json::string_t>());
+        if (direction == "down")
+          percentage *= -1.0;
+
+        if (percentage == 0.0)
+          return error_handler(
+              bad_request("invalid percentage specified", request));
+
+        new_task.percentProp
+            .emplace<scheduled_price_task_t::percentage_based_property_t>({});
+        new_task.percentProp->percentage = percentage;
+        extraValue = direction;
       }
-      scheduled_job_list.append(std::move(new_task));
+
+      new_task.task_id =
+          databaseConnector->add_new_price_task(new_task, extraValue);
+      if (new_task.task_id < 0) {
+        auto const errorMessage = fmt::format("unable to add task: {}", i);
+        return error_handler(bad_request(errorMessage, request));
+      }
+
+      if (!schedule_new_price_task(new_task)) {
+        databaseConnector->remove_price_task(new_task.task_id, m_sessionData.userID);
+        auto const errorMessage = fmt::format("unable to add task: {}", i);
+        return error_handler(bad_request(errorMessage, request));
+      }
+
+      taskIDs.emplace_back(new_task.task_id);
     }
-
     json::object_t result;
     result["status"] = static_cast<int>(error_type_e::NoError);
     result["message"] = "OK";
-    if (!global_request_id.empty()) {
-      result["id"] = global_request_id;
-    }
-    return send_response(json_success(result, request));
 
+    if (!request_id.empty())
+      result["id"] = request_id;
+
+    return send_response(json_success(result, request));
   } catch (std::exception const &e) {
     spdlog::error(e.what());
     return error_handler(bad_request("JSON object is invalid", request));
   }
+}
+
+void session_t::list_pricing_tasks(string_request_t const &request,
+                                   url_query_t const &) {
+  auto &db = database_connector_t::s_get_db_connector();
+  auto tasks = db->list_pricing_tasks(m_sessionData.userID);
+  return send_response(json_success(tasks, request));
 }
 
 void session_t::restart_scheduled_jobs(string_request_t const &request) {
@@ -701,17 +842,6 @@ bool session_t::extract_bearer_token(string_request_t const &request,
     }
   }
   return !token.empty();
-}
-
-bool session_t::is_validated_user(string_request_t const &request) {
-  std::string token{};
-  if (!extract_bearer_token(request, token))
-    return false;
-  auto iter = m_bearerTokenMap.find(token);
-  bool const found = iter != m_bearerTokenMap.end();
-  if (found)
-    m_currentUsername = iter->second.username;
-  return found;
 }
 
 void session_t::get_user_jobs_handler(string_request_t const &request,

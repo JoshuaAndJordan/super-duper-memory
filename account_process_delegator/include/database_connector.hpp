@@ -19,6 +19,7 @@
 
 #define OTL_SAFE_EXCEPTION_ON
 #include "account_stream/user_scheduled_task.hpp"
+#include "price_tasks.hpp"
 #include "db_config.hpp"
 #include "otl_v4/otlv4.h"
 #include "user_info.hpp"
@@ -48,11 +49,15 @@ public:
   [[nodiscard]] bool username_exists(std::string const &username);
   [[nodiscard]] bool email_exists(std::string const &email);
   [[nodiscard]] bool add_new_user(user_registration_data_t const &);
-  [[nodiscard]] bool is_valid_user(std::string const &username,
-                                   std::string const &passwordHash);
+  [[nodiscard]] int64_t is_valid_user(std::string const &username,
+                                      std::string const &passwordHash);
   [[nodiscard]] int add_new_monitor_task(account_scheduled_task_t const &);
   [[nodiscard]] bool change_monitor_task_status(int64_t userID, int taskID,
                                                 task_state_e);
   [[nodiscard]] bool remove_monitor_task(int64_t userID, int64_t taskID);
+  [[nodiscard]] int add_new_price_task(scheduled_price_task_t const &,
+                                       std::string const &extraValue);
+  [[nodiscard]] std::vector<scheduled_price_task_t> list_pricing_tasks(int64_t userID);
+  void remove_price_task(int taskID, int64_t userID);
 };
 } // namespace keep_my_journal

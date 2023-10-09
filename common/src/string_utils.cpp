@@ -99,17 +99,6 @@ std::string stringViewToString(boost::string_view const &str_view) {
   return str;
 }
 
-std::string stringListToString(std::vector<boost::string_view> const &vec) {
-  if (vec.empty())
-    return {};
-  std::string str{};
-  for (std::size_t index = 0; index < vec.size() - 1; ++index) {
-    str.append(vec[index].to_string() + ", ");
-  }
-  str.append(vec.back().to_string());
-  return str;
-}
-
 void hexToChar(std::string &s, std::vector<char> const &data) {
   s.clear();
   for (char const i : data) {
@@ -175,7 +164,7 @@ bool isValidMobileNumber(std::string_view const number, std::string &buffer) {
 }
 
 std::string_view boostViewToStdStringView(boost::string_view view) {
-  return std::string_view(view.data(), view.size());
+  return {view.data(), view.size()};
 }
 
 std::string integerListToString(std::vector<uint32_t> const &vec) {

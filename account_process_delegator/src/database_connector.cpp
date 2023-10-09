@@ -89,26 +89,25 @@ std::string string_or_null(std::string const &date_str) {
   return "'" + date_str + "'";
 }
 
-bool database_connector_t::is_valid_user(std::string const &username,
-                                         std::string const &password_hash) {
+int64_t database_connector_t::is_valid_user(std::string const &username,
+                                            std::string const &password_hash) {
   std::string const field =
       username.find('@') == std::string::npos ? "username" : "email";
 
   auto const sql_statement = fmt::format(
       "SELECT id FROM jd_users WHERE {}='{}' AND password_hash='{}'", field,
       username, password_hash);
+  int64_t user_id = -1;
+
   try {
     std::lock_guard<std::mutex> lock_g{m_dbMutex};
     otl_stream db_stream(2, sql_statement.c_str(), m_otlConnector);
-    int64_t user_id = 0;
-    if (!db_stream.eof()) {
+    if (!db_stream.eof())
       db_stream >> user_id;
-      return user_id != 0;
-    }
   } catch (otl_exception const &e) {
     log_sql_error(e);
   }
-  return false;
+  return user_id;
 }
 
 bool database_connector_t::username_exists(std::string const &username) {
@@ -231,6 +230,67 @@ bool database_connector_t::remove_monitor_task(int64_t const userID,
     return false;
   }
   return true;
+}
+
+template <typename T>
+std::string value_or_null(std::optional<T> const &optValue) {
+  if (optValue.has_value())
+    return "NULL";
+
+  if constexpr (std::is_same_v<
+                    T, scheduled_price_task_t::timed_based_property_t>) {
+    return fmt::format("'{}'", optValue->timeMS);
+  } else if constexpr (std::is_same_v<T, scheduled_price_task_t::
+                                             percentage_based_property_t>) {
+    return fmt::format("'{}'", optValue->percentage);
+  }
+  return "";
+}
+
+std::vector<scheduled_price_task_t>
+database_connector_t::list_pricing_tasks(int64_t const userID) {
+
+}
+
+void database_connector_t::remove_price_task(int const taskID,
+                                             int64_t const userID) {
+  auto const sqlStatement = fmt::format(
+      "DELETE FROM jb_price_tasks WHERE id={} AND user_id={}", taskID, userID);
+  try {
+    otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
+                            otl_exception::enabled);
+  } catch (otl_exception const &e) {
+    log_sql_error(e);
+  }
+}
+
+int database_connector_t::add_new_price_task(scheduled_price_task_t const &task,
+                                             std::string const &extraValue) {
+  std::string sqlStatement = fmt::format(
+      "INSERT INTO jb_price_tasks (symbols, trade_type, exchange, percentage,"
+      "time_ms, user_value, status) VALUES ('{}', '{}', '{}', {}, {}, '{}', "
+      "{})",
+      utils::stringListToString(task.tokens),
+      utils::tradeTypeToString(task.tradeType),
+      utils::exchangesToString(task.exchange), value_or_null(task.percentProp),
+      value_or_null(task.timeProp), extraValue,
+      static_cast<int>(task_state_e::initiated));
+
+  std::lock_guard<std::mutex> lockG(m_dbMutex);
+  int insertID = -1;
+
+  try {
+    otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
+                            otl_exception::enabled);
+    // get the ID of the last inserted data
+    sqlStatement = "SELECT MAX(ID) FROM jb_price_tasks";
+    otl_stream db_stream(1, sqlStatement.c_str(), m_otlConnector);
+    if (!db_stream.eof())
+      db_stream >> insertID;
+  } catch (otl_exception const &e) {
+    log_sql_error(e);
+  }
+  return insertID;
 }
 
 } // namespace keep_my_journal

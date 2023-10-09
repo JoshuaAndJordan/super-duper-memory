@@ -82,6 +82,7 @@ struct rule_t {
 struct session_metadata_t {
   std::string username{};
   time_t loginTime = 0;
+  int64_t userID {};
 };
 
 class endpoint_t {
@@ -118,7 +119,7 @@ class session_t : public std::enable_shared_from_this<session_t> {
   std::optional<http::request_parser<http::empty_body>> m_emptyBodyParser{};
   string_body_ptr m_clientRequest{};
   boost::string_view m_contentType{};
-  std::string m_currentUsername{};
+  session_metadata_t m_sessionData{};
   std::shared_ptr<void> m_resp;
   endpoint_t m_endpointApis;
   std::optional<http::response<http::file_body, http::basic_fields<alloc_t>>>
@@ -154,6 +155,7 @@ private:
   void register_new_user(string_request_t const &request,
                          url_query_t const &optional_query);
   void add_new_pricing_tasks(string_request_t const &, url_query_t const &);
+  void list_pricing_tasks(string_request_t const &, url_query_t const &);
   void monitor_user_account(string_request_t const &, url_query_t const &);
   void stop_scheduled_jobs(string_request_t const &, task_state_e);
   void restart_scheduled_jobs(string_request_t const &);
@@ -162,8 +164,9 @@ private:
   bool is_json_request() const;
   void http_write(beast::tcp_stream &, file_serializer_t &,
                   std::function<void()>);
-  bool extract_bearer_token(string_request_t const &, std::string &);
+  static bool extract_bearer_token(string_request_t const &, std::string &);
   static std::string generate_bearer_token(std::string const &username,
+                                           int64_t user_id,
                                            time_t current_time,
                                            std::string const &secret_key);
 
