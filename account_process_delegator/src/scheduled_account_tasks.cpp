@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "account_stream/user_scheduled_task.hpp"
+#include "macro_defines.hpp"
 #include <cppzmq/zmq.hpp>
 #include <price_stream/commodity.hpp>
 #include <spdlog/spdlog.h>
@@ -17,9 +18,10 @@ utils::waitable_container_t<account_scheduled_task_t> taskMonitorQueue{};
 std::deque<account_monitor_task_result_t> monitoredTaskResults{};
 
 std::optional<account_monitor_task_result_t>
-queue_monitoring_task(account_scheduled_task_t const &task) {
+queue_account_stream_tasks(account_scheduled_task_t const &task) {
   static auto const max_time_limit = std::chrono::seconds(20);
   taskMonitorQueue.append(task);
+
   auto iter = monitoredTaskResults.end();
   std::chrono::milliseconds now{0};
 
@@ -43,11 +45,12 @@ queue_monitoring_task(account_scheduled_task_t const &task) {
   return std::nullopt;
 }
 
-void write_data_to_wire(zmq::context_t &msgContext, msgpack::sbuffer &buffer,
-                        account_scheduled_task_t const &task,
-                        std::string const &path) {
+void write_scheduled_task_to_stream(zmq::context_t &msgContext,
+                                    msgpack::sbuffer &buffer,
+                                    account_scheduled_task_t const &task) {
   auto const address =
-      fmt::format("ipc://{}/{}", path, utils::exchangesToString(task.exchange));
+      fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
+                  utils::exchangesToString(task.exchange));
   zmq::socket_t sendingSocket(msgContext, zmq::socket_type::pub);
   sendingSocket.bind(address);
 
@@ -55,7 +58,6 @@ void write_data_to_wire(zmq::context_t &msgContext, msgpack::sbuffer &buffer,
   std::string_view const v(buffer.data(), buffer.size());
 
   zmq::message_t message(v);
-
   auto const optSize = sendingSocket.send(message, zmq::send_flags::none);
   if (!optSize.has_value())
     throw std::runtime_error("unable to send message on address " + address);
@@ -66,7 +68,9 @@ void monitor_scheduled_tasks_result(bool &isRunning,
   static size_t const resultBufferLimit = 5'000;
 
   zmq::socket_t recvSocket(msgContext, zmq::socket_type::sub);
-  recvSocket.connect("ipc:///tmp/cryptolog/stream/account/monitor");
+  recvSocket.connect(
+      fmt::format("ipc://{}", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH));
+
   while (isRunning) {
     zmq::message_t message{};
     if (auto const optRecv = recvSocket.recv(message); !optRecv.has_value()) {
@@ -86,10 +90,9 @@ void monitor_scheduled_tasks_result(bool &isRunning,
   }
 }
 
-void launch_account_monitor_sender(bool &isRunning) {
-  auto const path = "/tmp/cryptolog/stream/account/task";
-  if (!std::filesystem::exists(path))
-    std::filesystem::create_directories(path);
+void account_stream_scheduled_task_writer(bool &isRunning) {
+  if (!std::filesystem::exists(EXCHANGE_STREAM_TASK_SCHEDULER_PATH))
+    std::filesystem::create_directories(EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
 
   zmq::context_t msgContext{};
   msgpack::sbuffer buffer;
@@ -102,7 +105,7 @@ void launch_account_monitor_sender(bool &isRunning) {
     auto task = taskMonitorQueue.get();
 
     try {
-      write_data_to_wire(msgContext, buffer, task, path);
+      write_scheduled_task_to_stream(msgContext, buffer, task);
     } catch (std::exception const &e) {
       spdlog::error(e.what());
     }

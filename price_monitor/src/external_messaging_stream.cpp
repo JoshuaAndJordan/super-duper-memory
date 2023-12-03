@@ -5,16 +5,18 @@
 #include <msgpack.hpp>
 #include <thread>
 
+#include "macro_defines.hpp"
 #include "price_stream/commodity.hpp"
 #include "spdlog/spdlog.h"
 #include "string_utils.hpp"
 
 namespace keep_my_journal {
 
-void data_transmission(zmq::context_t &context, bool &running,
-                       std::string const &path, exchange_e const exchange) {
+void store_exchanges_price_into_storage(zmq::context_t &context, bool &running,
+                                        exchange_e const exchange) {
   auto const filename = utils::exchangesToString(exchange);
-  auto const address = fmt::format("ipc://{}/{}", path, filename);
+  auto const address =
+      fmt::format("ipc://{}/{}", PRICE_MONITOR_STREAM_DEPOSIT_PATH, filename);
   spdlog::info("The address is {}", address);
   auto &instruments = instrument_sink_t::get_all_listed_instruments(exchange);
 
@@ -45,24 +47,23 @@ void data_transmission(zmq::context_t &context, bool &running,
   senderSocket.close();
 }
 
-void start_data_transmission(bool &running) {
+void start_prices_deposit_into_storage(bool &running) {
   int const threadCount = (int)std::thread::hardware_concurrency();
   zmq::context_t context{threadCount};
 
-  static auto const path = "/tmp/cryptolog/stream/price";
-  if (!std::filesystem::exists(path))
-    std::filesystem::create_directories(path);
+  if (!std::filesystem::exists(PRICE_MONITOR_STREAM_DEPOSIT_PATH))
+    std::filesystem::create_directories(PRICE_MONITOR_STREAM_DEPOSIT_PATH);
 
   std::thread binanceDataSender{[&context, &running] {
-    data_transmission(context, running, path, exchange_e::binance);
+    store_exchanges_price_into_storage(context, running, exchange_e::binance);
   }};
 
   std::thread kucoinDataSender{[&context, &running] {
-    data_transmission(context, running, path, exchange_e::kucoin);
+    store_exchanges_price_into_storage(context, running, exchange_e::kucoin);
   }};
 
   std::thread okDataSender{[&context, &running] {
-    data_transmission(context, running, path, exchange_e::okex);
+    store_exchanges_price_into_storage(context, running, exchange_e::okex);
   }};
 
   binanceDataSender.join();

@@ -1,6 +1,6 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
-#include "price_tasks.hpp"
+#include "scheduled_price_tasks.hpp"
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <optional>
@@ -8,7 +8,8 @@
 namespace net = boost::asio;
 
 namespace keep_my_journal {
-class time_based_watch_price_t::time_based_watch_price_impl_t {
+class time_based_watch_price_t::time_based_watch_price_impl_t
+    : public std::enable_shared_from_this<time_based_watch_price_impl_t> {
   net::io_context &m_ioContext;
   utils::locked_set_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
@@ -17,11 +18,12 @@ class time_based_watch_price_t::time_based_watch_price_impl_t {
   void next_timer() {
     m_timer->expires_from_now(
         boost::posix_time::milliseconds(m_task.timeProp->timeMS));
-    m_timer->async_wait([this](boost::system::error_code const ec) {
-      if (ec)
-        return;
-      fetch_prices();
-    });
+    m_timer->async_wait(
+        [self = shared_from_this()](boost::system::error_code const ec) {
+          if (ec)
+            return;
+          self->fetch_prices();
+        });
   }
 
 public:
@@ -81,9 +83,10 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::stop() {
 time_based_watch_price_t::time_based_watch_price_t(
     net::io_context &ioContext, scheduled_price_task_t const &task)
     : price_task_t(ioContext),
-      m_impl(new time_based_watch_price_impl_t(m_ioContext, task)) {}
+      m_impl(
+          std::make_shared<time_based_watch_price_impl_t>(m_ioContext, task)) {}
 
-void time_based_watch_price_t::call() {
+void time_based_watch_price_t::run() {
   if (m_impl)
     m_impl->call();
 }
@@ -93,12 +96,9 @@ void time_based_watch_price_t::stop() {
     m_impl->stop();
 }
 
-time_based_watch_price_t::~time_based_watch_price_t() noexcept {
-  delete m_impl;
-}
-
 // ===================================================================
-class progress_based_watch_price_t::progress_based_watch_price_impl_t {
+class progress_based_watch_price_t::progress_based_watch_price_impl_t
+    : public std::enable_shared_from_this<progress_based_watch_price_impl_t> {
   net::io_context &m_ioContext;
   utils::locked_set_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
@@ -140,11 +140,12 @@ public:
 
   void next_timer() {
     m_periodicTimer->expires_from_now(boost::posix_time::milliseconds(100));
-    m_periodicTimer->async_wait([this](boost::system::error_code const ec) {
-      if (ec)
-        return;
-      check_prices();
-    });
+    m_periodicTimer->async_wait(
+        [self = shared_from_this()](boost::system::error_code const ec) {
+          if (ec)
+            return;
+          self->check_prices();
+        });
   }
 
   void call() {
@@ -208,13 +209,10 @@ public:
 progress_based_watch_price_t::progress_based_watch_price_t(
     net::io_context &ioContext, scheduled_price_task_t const &task)
     : price_task_t(ioContext),
-      m_impl(new progress_based_watch_price_impl_t(ioContext, task)) {}
+      m_impl(std::make_shared<progress_based_watch_price_impl_t>(ioContext,
+                                                                 task)) {}
 
-progress_based_watch_price_t::~progress_based_watch_price_t() noexcept {
-  delete m_impl;
-}
-
-void progress_based_watch_price_t::call() {
+void progress_based_watch_price_t::run() {
   if (m_impl)
     m_impl->call();
 }
@@ -253,28 +251,19 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
     return false;
 
   auto &ioContext = get_io_context();
-  std::unique_ptr<price_task_t> priceInfo = nullptr;
+  static auto &queue = global_price_task_sink_t::get_all_scheduled_tasks();
+  std::shared_ptr<price_task_t> priceTask = nullptr;
 
   if (taskInfo.percentProp) {
-    priceInfo =
-        std::make_unique<progress_based_watch_price_t>(ioContext, taskInfo);
+    priceTask =
+        std::make_shared<progress_based_watch_price_t>(ioContext, taskInfo);
   } else if (taskInfo.timeProp) {
-    priceInfo = std::make_unique<time_based_watch_price_t>(ioContext, taskInfo);
-  }
-
-  if (!priceInfo)
+    priceTask = std::make_shared<time_based_watch_price_t>(ioContext, taskInfo);
+  } else
     return false;
 
-  global_price_task_sink_t::get_all_scheduled_tasks().append(
-      std::move(priceInfo));
+  priceTask->run();
+  queue.insert(priceTask);
   return true;
 }
-
-void price_result_watcher(bool &isRunning) {
-  auto &queue = global_price_task_sink_t::get_all_scheduled_tasks();
-  while (isRunning) {
-    auto result = queue.get();
-  }
-}
-
 } // namespace keep_my_journal

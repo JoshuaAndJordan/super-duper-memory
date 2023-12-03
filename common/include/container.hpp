@@ -5,7 +5,9 @@
 #include <deque>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <unordered_set>
+#include <vector>
 
 namespace keep_my_journal::utils {
 
@@ -38,7 +40,8 @@ public:
                  std::move_iterator<iter_t>(std::end(container)));
   }
 
-  template <typename Func> std::vector<T> all_items_matching(Func &&filter) {
+  template <typename Func>
+  std::vector<T> all_items_matching(Func &&filter) const {
     std::lock_guard<std::mutex> lock_g{m_mutex};
     std::vector<T> items{};
     for (auto const &item : m_set) {
@@ -64,7 +67,7 @@ public:
     return std::vector<T>(m_set.cbegin(), m_set.cend());
   }
 
-  std::optional<T> find_item(T const &a) {
+  std::optional<T> find_item(T const &a) const {
     auto iter = m_set.find(a);
     if (iter != m_set.cend())
       return std::nullopt;

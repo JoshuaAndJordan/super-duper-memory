@@ -1,6 +1,8 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
+#ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -21,12 +23,12 @@ void okexchange_price_watcher(net::io_context &, ssl::context &);
 void kucoin_price_watcher(net::io_context &, ssl::context &);
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-void start_data_transmission(bool &);
+void start_prices_deposit_into_storage(bool &);
 #endif
 
 } // namespace keep_my_journal
 
-int main(int argc, char *argv[]) {
+int main() {
   unsigned int const native_thread_size = std::thread::hardware_concurrency();
   net::io_context ioContext((int)native_thread_size);
   ssl::context sslContext(ssl::context::tlsv12_client);
@@ -69,8 +71,9 @@ int main(int argc, char *argv[]) {
   }};
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-  std::thread dataTransmitter{
-      [&running] { keep_my_journal::start_data_transmission(running); }};
+  std::thread dataTransmitter{[&running] {
+    keep_my_journal::start_prices_deposit_into_storage(running);
+  }};
 #endif
 
   // wait a bit for all tasks to start up and have async "actions" lined up

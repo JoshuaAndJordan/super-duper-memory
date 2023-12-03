@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os
+import os, datetime
 from flask import Flask
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -54,12 +54,18 @@ class SocialMediaChannel(db.Model):
 
 class AssignedPricingTask(db.Model):
 	__tablename__ = 'jd_pricing_tasks'
-	ID = db.Column(db.Integer, primary_key=True, unique=True, index=True)
+	id = db.Column(db.Integer, primary_key=True, unique=True, index=True)
+	date_created = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+	date_updated = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
 	user_id = db.Column(db.Integer, db.ForeignKey('db_users.id'), nullable=False)
 	symbols = db.Column(db.String(256), nullable=False, default='BTCUSDT')
-	trade_types = db.Column(db.String(16), nullable=False, default='spot')
-	interval_in_seconds = db.Column(db.Integer, unique=False, nullable=False)
-	socials = db.Column(db.String(512), default='')
+	trade_type = db.Column(db.String(16), nullable=False, default='spot')
+	exchange = db.Column(db.String(16), nullable=False)
+	percentage = db.Column(db.Integer, nullable=True)
+	direction = db.Column(db.String(16), nullable=True)
+	time_ms = db.Column(db.Integer, unique=False, nullable=True)
+	duration = db.Column(db.String(16), unique=False, nullable=True)
+	status = db.Column(db.String(32), unique=False, nullable=True)
 
 
 class CCRecordings(db.Model):

@@ -19,14 +19,16 @@
 
 #define OTL_SAFE_EXCEPTION_ON
 #include "account_stream/user_scheduled_task.hpp"
-#include "price_tasks.hpp"
 #include "db_config.hpp"
 #include "otl_v4/otlv4.h"
+#include "scheduled_price_tasks.hpp"
 #include "user_info.hpp"
 
 namespace keep_my_journal {
 
 void log_sql_error(otl_exception const &exception);
+std::string
+price_tasks_to_db_string(std::vector<scheduled_price_task_t> const &tasks);
 
 class database_connector_t {
   std::set<std::string> m_usernames{};
@@ -55,9 +57,12 @@ public:
   [[nodiscard]] bool change_monitor_task_status(int64_t userID, int taskID,
                                                 task_state_e);
   [[nodiscard]] bool remove_monitor_task(int64_t userID, int64_t taskID);
-  [[nodiscard]] int add_new_price_task(scheduled_price_task_t const &,
-                                       std::string const &extraValue);
-  [[nodiscard]] std::vector<scheduled_price_task_t> list_pricing_tasks(int64_t userID);
+  [[nodiscard]] int add_new_price_task(scheduled_price_task_t const &);
+  [[nodiscard]] std::vector<int>
+  add_price_tasks_or_abort(std::vector<scheduled_price_task_t> const &);
+  [[nodiscard]] std::vector<scheduled_price_task_t>
+  list_pricing_tasks(int64_t userID);
   void remove_price_task(int taskID, int64_t userID);
+  void remove_price_tasks(std::vector<scheduled_price_task_t> const &);
 };
 } // namespace keep_my_journal

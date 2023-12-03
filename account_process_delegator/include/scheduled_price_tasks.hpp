@@ -13,10 +13,12 @@ namespace keep_my_journal {
 struct scheduled_price_task_t {
   struct timed_based_property_t {
     uint64_t timeMS{};
+    duration_unit_e duration;
   };
 
   struct percentage_based_property_t {
     double percentage{};
+    price_direction_e direction;
   };
 
   int task_id = 0;
@@ -25,6 +27,7 @@ struct scheduled_price_task_t {
   exchange_e exchange = exchange_e::total;
   std::optional<percentage_based_property_t> percentProp = std::nullopt;
   std::optional<timed_based_property_t> timeProp = std::nullopt;
+  task_state_e status;
 };
 
 struct scheduled_price_task_result_t {
@@ -39,40 +42,39 @@ protected:
 public:
   explicit price_task_t(net::io_context &ioContext) : m_ioContext(ioContext) {}
   virtual ~price_task_t() = default;
-  virtual void call() = 0;
+  virtual void run() = 0;
   virtual void stop() = 0;
 };
 
-class time_based_watch_price_t : public price_task_t {
+class time_based_watch_price_t
+    : public price_task_t,
+      public std::enable_shared_from_this<time_based_watch_price_t> {
   class time_based_watch_price_impl_t;
-
-  time_based_watch_price_impl_t *m_impl = nullptr;
+  std::shared_ptr<time_based_watch_price_impl_t> m_impl = nullptr;
 
 public:
-  ~time_based_watch_price_t() noexcept override;
   time_based_watch_price_t(net::io_context &, scheduled_price_task_t const &);
-  void call() override;
+  void run() override;
   void stop() override;
 };
 
-class progress_based_watch_price_t : public price_task_t {
+class progress_based_watch_price_t
+    : public price_task_t,
+      public std::enable_shared_from_this<progress_based_watch_price_t> {
   class progress_based_watch_price_impl_t;
-
-  progress_based_watch_price_impl_t *m_impl = nullptr;
+  std::shared_ptr<progress_based_watch_price_impl_t> m_impl = nullptr;
 
 public:
-  ~progress_based_watch_price_t() noexcept override;
   progress_based_watch_price_t(net::io_context &,
                                scheduled_price_task_t const &);
-  void call() override;
+  void run() override;
   void stop() override;
 };
 
 class global_price_task_sink_t {
   friend bool schedule_new_price_task(scheduled_price_task_t);
-  friend void price_result_watcher(bool &isRunning);
   static auto &get_all_scheduled_tasks() {
-    static utils::waitable_container_t<std::unique_ptr<price_task_t>> tasks;
+    static utils::locked_set_t<std::shared_ptr<price_task_t>> tasks;
     return tasks;
   }
 };

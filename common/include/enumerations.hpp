@@ -7,7 +7,7 @@
 
 namespace keep_my_journal {
 
-enum class task_state_e : size_t {
+enum class task_state_e: size_t {
   initiated,
   running,
   stopped,
@@ -16,37 +16,52 @@ enum class task_state_e : size_t {
   unknown,
 };
 
-enum class task_type_e : size_t {
+enum class task_type_e: size_t {
   profit_and_loss,
   price_changes,
   unknown,
 };
 
-enum class trade_direction_e : size_t {
+enum class trade_direction_e: size_t {
   sell,
   buy,
   none,
 };
 
-enum class trade_type_e : size_t {
+enum class trade_type_e: size_t {
   futures,
   spot,
   swap,
   total,
 };
 
-enum class exchange_e : size_t {
+enum class exchange_e: size_t {
   binance = 0,
   kucoin,
   okex,
   total,
 };
 
-enum class social_channel_e : size_t {
+enum class social_channel_e: size_t {
   telegram,
   whatsapp,
   email,
   none,
+};
+
+enum class price_direction_e: size_t {
+  up,
+  down,
+  invalid,
+};
+
+enum class duration_unit_e: size_t {
+  seconds,
+  minutes,
+  hours,
+  days,
+  weeks,
+  invalid
 };
 } // namespace keep_my_journal
 

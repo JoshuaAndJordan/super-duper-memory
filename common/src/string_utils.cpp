@@ -167,6 +167,14 @@ std::string_view boostViewToStdStringView(boost::string_view view) {
   return {view.data(), view.size()};
 }
 
+std::string toLowerString(std::string const & str) {
+  std::string result;
+  std::transform(str.cbegin(), str.cend(), result.begin(), [](char const ch){
+    return std::tolower(ch);
+  });
+  return result;
+}
+
 std::string integerListToString(std::vector<uint32_t> const &vec) {
   std::ostringstream ss{};
   if (vec.empty())
@@ -259,6 +267,29 @@ trade_type_e stringToTradeType(std::string const &str) {
   else if (str == "swap")
     return trade_type_e::swap;
   return trade_type_e::total;
+}
+
+price_direction_e stringToPriceDirection(std::string const &str) {
+  if (str == "up")
+    return price_direction_e::up;
+  else if (str == "down")
+    return price_direction_e::down;
+  return price_direction_e::invalid;
+}
+
+duration_unit_e stringToDurationUnit(std::string const &str) {
+  std::string const durationStr = toLowerString(str);
+  if (durationStr == "minutes" || durationStr == "minute")
+    return duration_unit_e::minutes;
+  else if (durationStr == "seconds" || durationStr == "second")
+    return duration_unit_e::seconds;
+  else if (durationStr == "hours" || durationStr == "hour")
+    return duration_unit_e::hours;
+  else if (durationStr == "days" || durationStr == "day")
+    return duration_unit_e::days;
+  else if (durationStr == "weeks" || durationStr == "week")
+    return duration_unit_e::weeks;
+  return duration_unit_e::invalid;
 }
 #endif
 

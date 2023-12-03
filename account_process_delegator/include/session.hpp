@@ -148,18 +148,11 @@ private:
                          url_query_t const &optional_query);
   void user_login_handler(string_request_t const &request,
                           url_query_t const &optional_query);
-  void scheduled_price_job_handler(string_request_t const &request,
-                                   url_query_t const &optional_query);
-  void get_user_jobs_handler(string_request_t const &request,
-                             url_query_t const &optional_query);
   void register_new_user(string_request_t const &request,
                          url_query_t const &optional_query);
   void add_new_pricing_tasks(string_request_t const &, url_query_t const &);
   void list_pricing_tasks(string_request_t const &, url_query_t const &);
   void monitor_user_account(string_request_t const &, url_query_t const &);
-  void stop_scheduled_jobs(string_request_t const &, task_state_e);
-  void restart_scheduled_jobs(string_request_t const &);
-  void get_tasks_result(string_request_t const &);
   bool is_validated_user(string_request_t const &);
   bool is_json_request() const;
   void http_write(beast::tcp_stream &, file_serializer_t &,

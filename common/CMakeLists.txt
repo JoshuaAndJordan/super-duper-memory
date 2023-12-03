@@ -108,7 +108,8 @@ set(HEADERS_FILES
         include/uri.hpp
         include/account_stream/okex_order_info.hpp
         include/account_stream/binance_order_info.hpp
-        include/price_stream/commodity.hpp)
+        include/price_stream/commodity.hpp
+        include/macro_defines.hpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
 

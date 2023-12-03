@@ -17,7 +17,8 @@ bool anyElementIsInvalid(Container const &container, IterList &&...iter_list) {
 
 void trimString(std::string &);
 std::string trimCopy(std::string const &s);
-bool unixTimeToString(std::string &, std::size_t, char const * = "%Y-%m-%d %H:%M:%S");
+bool unixTimeToString(std::string &, std::size_t,
+                      char const * = "%Y-%m-%d %H:%M:%S");
 bool isValidMobileNumber(std::string_view, std::string &);
 std::string md5Hash(std::string const &);
 std::string decodeUrl(boost::string_view const &encoded_string);
@@ -31,23 +32,44 @@ void splitStringInto(std::vector<std::string> &, std::string const &text,
 void replaceIfStarts(std::string &, std::string const &findText,
                      std::string const &replaceText);
 
-template<typename StringType>
-std::string stringListToString(std::vector<StringType> const &vec) {
+template <typename T>
+inline void concatenate_data(std::ostringstream &stream, T const &data) {
+  if constexpr (std::is_same_v<std::string_view, T>)
+    stream << data.data();
+  else
+    stream << data;
+}
+
+template <typename DataType>
+std::string stringListToString(std::vector<DataType> const &vec) {
   if (vec.empty())
     return {};
-  std::string str{};
+  std::ostringstream stream{};
   for (std::size_t index = 0; index < vec.size() - 1; ++index) {
-    str.append(vec[index].data(), vec[index].size());
-    str += ", ";
+    concatenate_data(stream, vec[index]);
+    stream << ",";
   }
 
-  str.append(vec[index].data(), vec[index].size());
-  return str;
+  concatenate_data(stream, vec.back());
+  return stream.str();
+}
+
+template<typename ScheduledTask>
+std::string extractTasksIDsToString(std::vector<ScheduledTask> const &tasks) {
+  std::ostringstream ss;
+  for (size_t index = 0; index < tasks.size() - 1; ++index)
+    ss << tasks[index].task_id << ",";
+  ss << tasks.back().task_id;
+  return ss.str();
 }
 
 #ifdef CRYPTOLOG_USING_MSGPACK
 std::string exchangesToString(exchange_e exchange);
 std::string tradeTypeToString(trade_type_e tradeType);
+std::string durationUnitToString(duration_unit_e);
+std::string priceDirectionToString(price_direction_e);
+price_direction_e stringToPriceDirection(std::string const &str);
+duration_unit_e stringToDurationUnit(std::string const &str);
 exchange_e stringToExchange(std::string const &exchangeName);
 trade_type_e stringToTradeType(std::string const &str);
 #endif

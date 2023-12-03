@@ -108,8 +108,8 @@ set(SRC_FILES
         src/database_connector.cpp
         src/server.cpp
         src/session.cpp
-        src/accounts_watcher.cpp
-        src/price_tasks.cpp)
+        src/scheduled_account_tasks.cpp
+        src/scheduled_price_tasks.cpp)
 
 source_group("Sources" FILES ${SRC_FILES})
 
@@ -121,14 +121,14 @@ set(HEADERS_FILES
         include/session.hpp
         include/cli.hpp
         include/user_info.hpp
-        include/price_tasks.hpp
+        include/scheduled_price_tasks.hpp
 )
 
 source_group("Headers" FILES ${HEADERS_FILES})
 
 #Add executable to build.
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADERS_FILES}
-        src/price_watcher.cpp)
+        src/latest_prices_watcher.cpp)
 
 if (ENABLE_MSGPACK_USAGE)
   target_link_libraries(${PROJECT_NAME} common cppzmq msgpack-cxx)

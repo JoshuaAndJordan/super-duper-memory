@@ -14,6 +14,46 @@ void log_sql_error(otl_exception const &exception) {
   spdlog::error("SQLError msg: {}", (char const *)exception.msg);
 }
 
+otl_stream &operator>>(otl_stream &os, scheduled_price_task_t &item) {
+  std::string tradeType, exchangeString, extraValue;
+  os >> item.task_id;
+  os >> tradeType;
+  os >> exchangeString;
+
+  item.tradeType = utils::stringToTradeType(tradeType);
+  item.exchange = utils::stringToExchange(exchangeString);
+  item.percentProp.reset();
+  item.timeProp.reset();
+
+  double percentage = 0.0;
+  os >> percentage;
+
+  if (!os.is_null()) {
+    item.percentProp
+        .emplace<scheduled_price_task_t::percentage_based_property_t>({});
+    item.percentProp->percentage = percentage;
+  }
+  os >> extraValue; // get the extra bit out
+  if (!os.is_null())
+    item.percentProp->direction = utils::stringToPriceDirection(extraValue);
+
+  int time_ms = 0;
+  os >> time_ms;
+
+  if (!os.is_null()) {
+    item.timeProp.emplace<scheduled_price_task_t::timed_based_property_t>({});
+    item.timeProp->timeMS = time_ms;
+  }
+
+  os >> extraValue;
+  if (!os.is_null())
+    item.timeProp->duration = utils::stringToDurationUnit(extraValue);
+  // the extra "status" part
+  os >> time_ms;
+  item.status = static_cast<task_state_e>(time_ms);
+  return os;
+}
+
 void otl_datetime_to_string(std::string &result, otl_datetime const &date) {
   result =
       fmt::format("{}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}", date.year,
@@ -115,7 +155,7 @@ bool database_connector_t::username_exists(std::string const &username) {
     return true;
 
   auto const sql_statement =
-      fmt::format("SELECT id FROM jb_users WHERE username='{}'", username);
+      fmt::format("SELECT id FROM jd_users WHERE username='{}'", username);
   try {
     std::lock_guard<std::mutex> lock_g{m_dbMutex};
     otl_stream db_stream(1, sql_statement.c_str(), m_otlConnector);
@@ -135,7 +175,7 @@ bool database_connector_t::username_exists(std::string const &username) {
 
 bool database_connector_t::email_exists(std::string const &email) {
   auto const sql_statement =
-      fmt::format("SELECT id FROM jb_users WHERE email='{}'", email);
+      fmt::format("SELECT id FROM jd_users WHERE email='{}'", email);
   try {
     std::lock_guard<std::mutex> lock_g{m_dbMutex};
     otl_stream db_stream(1, sql_statement.c_str(), m_otlConnector);
@@ -203,7 +243,7 @@ int database_connector_t::add_new_monitor_task(
 bool database_connector_t::change_monitor_task_status(
     int64_t const userID, int const taskID, task_state_e const status) {
   auto const sqlStatement =
-      fmt::format("UPDATE jb_monitor_accounts SET task_status={} WHERE "
+      fmt::format("UPDATE jd_monitor_accounts SET task_status={} WHERE "
                   "userID={} AND taskID={}",
                   (int)status, userID, taskID);
   try {
@@ -219,7 +259,7 @@ bool database_connector_t::change_monitor_task_status(
 bool database_connector_t::remove_monitor_task(int64_t const userID,
                                                int64_t const taskID) {
   auto const sqlStatement =
-      fmt::format("DELETE FROM jb_monitor_accounts WHERE user_id={} AND "
+      fmt::format("DELETE FROM jd_monitor_accounts WHERE user_id={} AND "
                   "taskID={}",
                   userID, taskID);
   try {
@@ -234,28 +274,41 @@ bool database_connector_t::remove_monitor_task(int64_t const userID,
 
 template <typename T>
 std::string value_or_null(std::optional<T> const &optValue) {
-  if (optValue.has_value())
-    return "NULL";
+  if (!optValue.has_value())
+    return "NULL, NULL";
 
   if constexpr (std::is_same_v<
                     T, scheduled_price_task_t::timed_based_property_t>) {
-    return fmt::format("'{}'", optValue->timeMS);
+    return fmt::format("'{}', '{}'", optValue->timeMS,
+                       utils::durationUnitToString(optValue->duration));
   } else if constexpr (std::is_same_v<T, scheduled_price_task_t::
                                              percentage_based_property_t>) {
-    return fmt::format("'{}'", optValue->percentage);
+    return fmt::format("'{}', '{}'", optValue->percentage,
+                       utils::priceDirectionToString(optValue->direction));
   }
   return "";
 }
 
 std::vector<scheduled_price_task_t>
 database_connector_t::list_pricing_tasks(int64_t const userID) {
+  auto const sqlStatement = fmt::format(
+      "SELECT id, symbols, trade_type, exchange, percentage, direction,"
+      "time_ms, duration, status FROM jd_price_tasks WHERE user_id={}",
+      userID);
 
+  scheduled_price_task_t task;
+  std::vector<scheduled_price_task_t> tasks;
+  std::lock_guard<std::mutex> lockG(m_dbMutex);
+  otl_stream db_stream(1'000, sqlStatement.c_str(), m_otlConnector);
+  while (db_stream >> task)
+    tasks.push_back(task);
+  return tasks;
 }
 
 void database_connector_t::remove_price_task(int const taskID,
                                              int64_t const userID) {
   auto const sqlStatement = fmt::format(
-      "DELETE FROM jb_price_tasks WHERE id={} AND user_id={}", taskID, userID);
+      "DELETE FROM jd_price_tasks WHERE id={} AND user_id={}", taskID, userID);
   try {
     otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
                             otl_exception::enabled);
@@ -264,33 +317,86 @@ void database_connector_t::remove_price_task(int const taskID,
   }
 }
 
-int database_connector_t::add_new_price_task(scheduled_price_task_t const &task,
-                                             std::string const &extraValue) {
-  std::string sqlStatement = fmt::format(
-      "INSERT INTO jb_price_tasks (symbols, trade_type, exchange, percentage,"
-      "time_ms, user_value, status) VALUES ('{}', '{}', '{}', {}, {}, '{}', "
-      "{})",
+void database_connector_t::remove_price_tasks(
+    std::vector<scheduled_price_task_t> const &tasks) {
+  auto const sqlStatement =
+      fmt::format("DELETE FROM jd_price_tasks WHERE id IN ({})",
+                  utils::extractTasksIDsToString(tasks));
+  try {
+    otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
+                            otl_exception::enabled);
+  } catch (otl_exception const &e) {
+    log_sql_error(e);
+  }
+}
+
+std::string price_task_to_db_string(scheduled_price_task_t const &task) {
+  return fmt::format(
+      "('{}', '{}', '{}', {}, {}, '{}')",
       utils::stringListToString(task.tokens),
       utils::tradeTypeToString(task.tradeType),
       utils::exchangesToString(task.exchange), value_or_null(task.percentProp),
-      value_or_null(task.timeProp), extraValue,
-      static_cast<int>(task_state_e::initiated));
+      value_or_null(task.timeProp), static_cast<int>(task.status));
+}
+
+std::string
+price_tasks_to_db_string(std::vector<scheduled_price_task_t> const &tasks) {
+  if (tasks.empty())
+    throw std::runtime_error("empty price tasks");
+  std::ostringstream ss;
+
+  for (size_t index = 0; index != tasks.size() - 1; ++index)
+    ss << price_task_to_db_string(tasks[index]) << ", ";
+  ss << price_task_to_db_string(tasks.back());
+  return ss.str();
+}
+
+std::vector<int> database_connector_t::add_price_tasks_or_abort(
+    const std::vector<scheduled_price_task_t> &scheduled_tasks) {
+  if (scheduled_tasks.empty())
+    return {};
+
+  auto sqlStatement = fmt::format(
+      "INSERT INTO jd_price_tasks (symbols, trade_type, exchange, percentage,"
+      "direction, time_ms, duration, status) VALUES ",
+      price_tasks_to_db_string(scheduled_tasks));
+
+  std::vector<int> task_ids{};
+  task_ids.reserve(scheduled_tasks.size());
 
   std::lock_guard<std::mutex> lockG(m_dbMutex);
-  int insertID = -1;
 
   try {
     otl_cursor::direct_exec(m_otlConnector, sqlStatement.c_str(),
                             otl_exception::enabled);
-    // get the ID of the last inserted data
-    sqlStatement = "SELECT MAX(ID) FROM jb_price_tasks";
-    otl_stream db_stream(1, sqlStatement.c_str(), m_otlConnector);
-    if (!db_stream.eof())
-      db_stream >> insertID;
+    // select the last N ids from the database
+    auto const idExtractStatement =
+        fmt::format("SELECT id FROM (SELECT * FROM jd_price_tasks ORDER BY id "
+                    "DESC LIMIT {}) AS sub ORDER BY id ASC",
+                    scheduled_tasks.size());
+
+    otl_stream db_stream(1'000, idExtractStatement.c_str(), m_otlConnector);
+    for (size_t i = 0; i < scheduled_tasks.size(); ++i) {
+      if (db_stream.eof())
+        break;
+      int id = 0;
+      db_stream >> id;
+      task_ids.push_back(id);
+    }
   } catch (otl_exception const &e) {
     log_sql_error(e);
+    return {};
   }
-  return insertID;
+
+  return task_ids;
+}
+
+int database_connector_t::add_new_price_task(
+    scheduled_price_task_t const &task) {
+  auto const ids = add_price_tasks_or_abort({task});
+  if (ids.empty())
+    return -1;
+  return ids.back();
 }
 
 } // namespace keep_my_journal
