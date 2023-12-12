@@ -1,5 +1,3 @@
-/price_task?action=add
-
 {
   "userID": "12",
   "symbols": ["BTCUSDT", "ETHUSDT"],

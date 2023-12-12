@@ -115,7 +115,6 @@ source_group("Sources" FILES ${SRC_FILES})
 
 #Header Files
 set(HEADERS_FILES
-        include/db_config.hpp
         include/database_connector.hpp
         include/server.hpp
         include/session.hpp

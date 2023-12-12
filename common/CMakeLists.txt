@@ -87,7 +87,6 @@ set(SRC_FILES
         src/crypto_utils.cpp
         src/file_utils.cpp
         src/https_rest_api.cpp
-        src/json_utils.cpp
         src/random_utils.cpp
         src/string_utils.cpp
         src/uri.cpp)

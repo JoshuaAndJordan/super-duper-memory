@@ -1,7 +1,6 @@
 #include "string_utils.hpp"
 
 #include <ctime>
-#include <openssl/md5.h>
 #include <sstream>
 
 namespace keep_my_journal::utils {
@@ -99,31 +98,6 @@ std::string stringViewToString(boost::string_view const &str_view) {
   return str;
 }
 
-void hexToChar(std::string &s, std::vector<char> const &data) {
-  s.clear();
-  for (char const i : data) {
-    char szBuff[3] = "";
-    sprintf(szBuff, "%02x",
-            *reinterpret_cast<const unsigned char *>(&i) & 0xff);
-    s += szBuff[0];
-    s += szBuff[1];
-  }
-}
-
-std::string md5Hash(std::string const &input_data) {
-  std::vector<char> vMd5;
-  vMd5.resize(16);
-
-  MD5_CTX ctx;
-  MD5_Init(&ctx);
-  MD5_Update(&ctx, input_data.c_str(), input_data.size());
-  MD5_Final((unsigned char *)&vMd5[0], &ctx);
-
-  std::string sMd5;
-  hexToChar(sMd5, vMd5);
-  return sMd5;
-}
-
 void replaceIfStarts(std::string &str, std::string const &oldStr,
                      std::string const &newStr) {
   std::string::size_type pos = 0u;
@@ -167,11 +141,10 @@ std::string_view boostViewToStdStringView(boost::string_view view) {
   return {view.data(), view.size()};
 }
 
-std::string toLowerString(std::string const & str) {
+std::string toLowerString(std::string const &str) {
   std::string result;
-  std::transform(str.cbegin(), str.cend(), result.begin(), [](char const ch){
-    return std::tolower(ch);
-  });
+  std::transform(str.cbegin(), str.cend(), result.begin(),
+                 [](char const ch) { return std::tolower(ch); });
   return result;
 }
 
@@ -290,6 +263,31 @@ duration_unit_e stringToDurationUnit(std::string const &str) {
   else if (durationStr == "weeks" || durationStr == "week")
     return duration_unit_e::weeks;
   return duration_unit_e::invalid;
+}
+
+std::string durationUnitToString(duration_unit_e const unit) {
+  switch (unit) {
+  case duration_unit_e::seconds:
+    return "seconds";
+  case duration_unit_e::minutes:
+    return "minutes";
+  case duration_unit_e::hours:
+    return "hours";
+  case duration_unit_e::days:
+    return "days";
+  case duration_unit_e::weeks:
+    return "weeks";
+  default:
+    return "invalid";
+  }
+}
+
+std::string priceDirectionToString(price_direction_e const direction) {
+  if (direction == price_direction_e::down)
+    return "down";
+  else if (direction == price_direction_e::up)
+    return "up";
+  return "invalid";
 }
 #endif
 

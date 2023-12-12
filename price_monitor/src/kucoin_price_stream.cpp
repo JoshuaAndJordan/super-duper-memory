@@ -369,13 +369,16 @@ void kucoin_futures_price_stream_t::on_instruments_received(
 
     for (auto const &tickerItem : tickers) {
       auto const tickerObject = tickerItem.get<json::object_t>();
-      data.name = tickerObject.find("symbol")->second.get<json::string_t>();
       auto const lastPrice = tickerObject.find("lastTradePrice")->second;
+      if (lastPrice.is_null())
+        continue;
+
       if (lastPrice.is_number())
         data.currentPrice = lastPrice.get<json::number_float_t>();
       else if (lastPrice.is_string())
         data.currentPrice = std::stod(lastPrice.get<json::string_t>());
 
+      data.name = tickerObject.find("symbol")->second.get<json::string_t>();
       m_fInstruments.push_back(data);
       m_tradedInstruments.append(data);
     }
@@ -414,32 +417,40 @@ kucoin_spot_price_stream_t::kucoin_spot_price_stream_t(
 
 void kucoin_spot_price_stream_t::on_instruments_received(
     std::string const &str) {
-  try {
-    auto const rootObject = json::parse(str).get<json::object_t>();
-    auto const codeIter = rootObject.find("code");
-    if (codeIter == rootObject.end() || !codeIter->second.is_string() ||
-        codeIter->second.get<json::string_t>() != "200000")
-      return;
-    auto const dataIter = rootObject.find("data");
-    if (dataIter == rootObject.end() || !dataIter->second.is_object())
-      return;
-    auto const dataObject = dataIter->second.get<json::object_t>();
-    auto const tickerIter = dataObject.find("ticker");
-    if (tickerIter == dataObject.end() || !tickerIter->second.is_array())
-      return;
-    auto const tickers = tickerIter->second.get<json::array_t>();
-    instrument_type_t data;
-    data.tradeType = trade_type_e::spot;
+  auto const rootObject = json::parse(str).get<json::object_t>();
+  auto const codeIter = rootObject.find("code");
+  if (codeIter == rootObject.end() || !codeIter->second.is_string() ||
+      codeIter->second.get<json::string_t>() != "200000")
+    return;
 
-    for (auto const &tickerItem : tickers) {
-      auto const tickerObject = tickerItem.get<json::object_t>();
-      data.name = tickerObject.find("symbol")->second.get<json::string_t>();
-      data.currentPrice =
-          std::stod(tickerObject.find("last")->second.get<json::string_t>());
-      m_tradedInstruments.append(data);
+  auto const dataIter = rootObject.find("data");
+  if (dataIter == rootObject.end() || !dataIter->second.is_object())
+    return;
+  auto const dataObject = dataIter->second.get<json::object_t>();
+  auto const tickerIter = dataObject.find("ticker");
+  if (tickerIter == dataObject.end() || !tickerIter->second.is_array())
+    return;
+  auto const tickers = tickerIter->second.get<json::array_t>();
+  instrument_type_t data;
+  data.tradeType = trade_type_e::spot;
+
+  for (auto const &tickerItem : tickers) {
+    auto const tickerObject = tickerItem.get<json::object_t>();
+    auto const temp = tickerObject.find("last")->second;
+    if (temp.is_null())
+      continue;
+
+    if (temp.is_string())
+      data.currentPrice = std::stod(temp.get<json::string_t>());
+    else if (temp.is_number())
+      data.currentPrice = temp.get<json::number_float_t>();
+    else {
+      spdlog::error(json(tickerObject).dump());
+      throw std::runtime_error("Unknown data sent in on_instruments_received");
     }
-  } catch (std::exception const &e) {
-    spdlog::error(e.what());
+
+    data.name = tickerObject.find("symbol")->second.get<json::string_t>();
+    m_tradedInstruments.append(data);
   }
 }
 

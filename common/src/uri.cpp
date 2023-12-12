@@ -1,6 +1,5 @@
 #include "uri.hpp"
 #include <algorithm>
-#include <iterator>
 
 namespace keep_my_journal {
 

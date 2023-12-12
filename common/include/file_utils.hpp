@@ -36,6 +36,6 @@ bool createFileDirectory(std::filesystem::path const &path);
 void normalizePaths(std::string &str);
 void replaceSpecialChars(std::string &str);
 void removeFile(std::string &filename);
-std::unique_ptr<keep_my_journal::db_config_t>
-parseConfigFile(std::string const &filename, std::string const &config_name);
+std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
+                                             std::string const &config_name);
 } // namespace keep_my_journal::utils

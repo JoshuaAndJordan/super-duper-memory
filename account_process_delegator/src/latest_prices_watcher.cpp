@@ -11,7 +11,9 @@
 namespace keep_my_journal {
 namespace utils {
 std::string exchangesToString(exchange_e);
-}
+std::string tradeTypeToString(trade_type_e tradeType);
+
+} // namespace utils
 
 void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
                            exchange_e const exchange) {
@@ -49,6 +51,9 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
       continue;
     }
 
+    spdlog::info("New price alert: {} -> {} -> {}", instrument.name,
+                 utils::tradeTypeToString(instrument.tradeType),
+                 instrument.currentPrice);
     instruments.insert(std::move(instrument));
   }
 

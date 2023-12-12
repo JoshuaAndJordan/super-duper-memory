@@ -2,9 +2,10 @@
 
 #include <limits>
 #include <openssl/evp.h>
-#include <openssl/hmac.h>
+#include <openssl/md5.h>
 #include <openssl/params.h>
 #include <stdexcept>
+#include <vector>
 
 namespace keep_my_journal::utils {
 
@@ -83,6 +84,31 @@ std::string base64Decode(std::string const &asc_data) {
     }
   }
   return ret_val;
+}
+
+void hexToChar(std::string &s, std::vector<char> const &data) {
+  s.clear();
+  for (char const i : data) {
+    char szBuff[3] = "";
+    sprintf(szBuff, "%02x",
+            *reinterpret_cast<const unsigned char *>(&i) & 0xff);
+    s += szBuff[0];
+    s += szBuff[1];
+  }
+}
+
+std::string md5Hash(std::string const &input_data) {
+  std::vector<char> vMd5;
+  vMd5.resize(16);
+
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  MD5_Update(&ctx, input_data.c_str(), input_data.size());
+  MD5_Final((unsigned char *)&vMd5[0], &ctx);
+
+  std::string sMd5;
+  hexToChar(sMd5, vMd5);
+  return sMd5;
 }
 
 std::basic_string<unsigned char> hmac256Encode(std::string const &data,

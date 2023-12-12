@@ -82,7 +82,7 @@ struct rule_t {
 struct session_metadata_t {
   std::string username{};
   time_t loginTime = 0;
-  int64_t userID {};
+  int64_t userID{};
 };
 
 class endpoint_t {
@@ -159,8 +159,7 @@ private:
                   std::function<void()>);
   static bool extract_bearer_token(string_request_t const &, std::string &);
   static std::string generate_bearer_token(std::string const &username,
-                                           int64_t user_id,
-                                           time_t current_time,
+                                           int64_t user_id, time_t current_time,
                                            std::string const &secret_key);
 
 private:
@@ -205,14 +204,17 @@ void session_t::send_file(std::filesystem::path const &file_path,
     return error_handler(server_error("unable to open file specified",
                                       error_type_e::ServerError, request));
   }
-  m_fileResponse.emplace(std::piecewise_construct, std::make_tuple(),
-                         std::make_tuple(m_fileAlloc));
-  m_fileResponse->result(http::status::ok);
-  m_fileResponse->keep_alive(request.keep_alive());
-  m_fileResponse->set(http::field::server, "okex-feed");
-  m_fileResponse->set(http::field::content_type, content_type);
-  m_fileResponse->body() = std::move(file);
-  m_fileResponse->prepare_payload();
+
+  auto &response =
+      m_fileResponse.emplace(std::piecewise_construct, std::make_tuple(),
+                             std::make_tuple(m_fileAlloc));
+  response.result(http::status::ok);
+  response.keep_alive(request.keep_alive());
+  response.set(http::field::server, "okex-feed");
+  response.set(http::field::content_type, content_type);
+  response.body() = std::move(file);
+  response.prepare_payload();
+
   m_fileSerializer.emplace(*m_fileResponse);
   http_write(m_tcpStream, *m_fileSerializer, func);
 }

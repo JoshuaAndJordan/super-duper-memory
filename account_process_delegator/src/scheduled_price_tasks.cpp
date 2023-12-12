@@ -266,4 +266,9 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
   queue.insert(priceTask);
   return true;
 }
+
+void send_price_task_result(scheduled_price_task_result_t const &) {
+  // todo
+}
+
 } // namespace keep_my_journal

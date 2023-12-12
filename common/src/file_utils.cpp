@@ -1,7 +1,8 @@
 #include "file_utils.hpp"
+#include "db_config.hpp"
 #include "json_utils.hpp"
+#include "spdlog/spdlog.h"
 #include <boost/algorithm/string.hpp>
-// #include "config.hpp"
 
 namespace keep_my_journal::utils {
 void normalizePaths(std::string &str) {
@@ -44,9 +45,27 @@ bool createFileDirectory(std::filesystem::path const &path) {
   return !ec;
 }
 
-/*
-std::unique_ptr<jordan::db_config_t>
-parseConfigFile(std::string const &filename, std::string const &config_name) {
+std::optional<json::object_t>
+read_object_json_file(std::string const &filename) {
+  std::ifstream fileStream(filename);
+  if (!(std::filesystem::exists(filename) && fileStream))
+    return std::nullopt;
+
+  fileStream.seekg(0, std::ios::end);
+  int const bufferSize = static_cast<int>(fileStream.tellg());
+  fileStream.seekg(0, std::ios::beg);
+
+  std::unique_ptr<char[]> buffer(new char[bufferSize + 1]);
+  fileStream.read(buffer.get(), bufferSize);
+
+  return json::parse(std::string_view(buffer.get(), bufferSize))
+      .get<json::object_t>();
+}
+
+void log_general_exception(std::exception const &e);
+
+std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
+                                             std::string const &config_name) {
   auto const file_content_object = read_object_json_file(filename);
   if (!file_content_object)
     return nullptr;
@@ -67,25 +86,21 @@ parseConfigFile(std::string const &filename, std::string const &config_name) {
         auto db_config = std::make_unique<db_config_t>();
 
         // let's get out the compulsory field first
-        db_config->db_username = db_data.at("username").get<json::string_t>();
-        db_config->db_password = db_data.at("password").get<json::string_t>();
-        if (db_config->db_password.find('@') != std::string::npos)
-          boost::replace_all(db_config->db_password, "@", "\\@");
+        db_config->dbUsername = db_data.at("username").get<json::string_t>();
+        db_config->dbPassword = db_data.at("password").get<json::string_t>();
+        if (db_config->dbPassword.find('@') != std::string::npos)
+          boost::replace_all(db_config->dbPassword, "@", "\\@");
 
-        db_config->db_dns = db_data.at("db_dns").get<json::string_t>();
-        db_config->jwt_secret_key =
+        db_config->dbDns = db_data.at("db_dns").get<json::string_t>();
+        db_config->jwtSecretKey =
             file_content_object->at("jwt_token").get<json::string_t>();
-        db_config->tg_bot_secret_key =
-            file_content_object->at("tg_bot_token").get<json::string_t>();
-
         return db_config;
       }
     }
-  } catch (std::exception const &) {
-    //
+  } catch (std::exception const &e) {
+    spdlog::error(e.what());
   }
   return nullptr;
 }
-*/
 
 } // namespace keep_my_journal::utils
