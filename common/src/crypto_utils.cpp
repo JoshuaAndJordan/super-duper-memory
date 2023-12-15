@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <openssl/evp.h>
+#include <openssl/hmac.h>
 #include <openssl/md5.h>
 #include <openssl/params.h>
 #include <stdexcept>
@@ -113,49 +114,16 @@ std::string md5Hash(std::string const &input_data) {
 
 std::basic_string<unsigned char> hmac256Encode(std::string const &data,
                                                std::string const &key) {
-  struct mac_deleter_t {
-    EVP_MAC **m_mac = nullptr;
-    EVP_MAC_CTX **m_ctx = nullptr;
-    mac_deleter_t(EVP_MAC **mac, EVP_MAC_CTX **ctx) : m_mac(mac), m_ctx(ctx) {}
-    ~mac_deleter_t() {
-      if (*m_mac)
-        EVP_MAC_free(*m_mac);
-      if (*m_ctx)
-        EVP_MAC_CTX_free(*m_ctx);
-    }
-    static int openssl_dummy() {
-      OpenSSL_add_all_digests();
-      return 0;
-    }
-  };
-
-  static int const dummyValue = mac_deleter_t::openssl_dummy();
-  EVP_MAC *mac = nullptr;
-  EVP_MAC_CTX *ctx = nullptr;
-  OSSL_PARAM params[2] = {
-      OSSL_PARAM_construct_utf8_string("digest", (char *)"SHA256", 0),
-      OSSL_PARAM_construct_end()};
-  mac_deleter_t macDeleter(&mac, &ctx);
-
-  mac = EVP_MAC_fetch(nullptr, "HMAC", nullptr);
-  if (!mac)
-    throw std::runtime_error("Unable to fetch SHA256 MAC");
-
-  ctx = EVP_MAC_CTX_new(mac);
-  if (!ctx)
-    throw std::runtime_error("Unable to create MAC context");
-
-  if (!EVP_MAC_init(ctx, (const unsigned char *)key.c_str(), key.length(),
-                    params)) {
-    throw std::runtime_error("Unable to initialize MAC context with key");
-  }
-
-  size_t len{};
+  HMAC_CTX *ctx = HMAC_CTX_new();
+  HMAC_Init_ex(ctx, key.c_str(), (int)key.size(), EVP_sha256(), nullptr);
+  unsigned int len{};
   unsigned char out[EVP_MAX_MD_SIZE];
-  EVP_MAC_update(ctx, (unsigned char *)data.c_str(), data.length());
-  EVP_MAC_final(ctx, out, &len, EVP_MAX_MD_SIZE);
-  (void)dummyValue;
+  HMAC_Init(ctx, key.c_str(), (int)key.length(), EVP_sha256());
+  HMAC_Update(ctx, (unsigned char *)data.c_str(), data.length());
+  HMAC_Final(ctx, out, &len);
+  HMAC_CTX_free(ctx);
 
   return std::basic_string<unsigned char>(out, len);
 }
+
 } // namespace keep_my_journal::utils

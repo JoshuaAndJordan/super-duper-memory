@@ -12,7 +12,9 @@ server_t::server_t(net::io_context &context, command_line_interface_t &&args)
     : m_ioContext(context), m_acceptor(net::make_strand(m_ioContext)),
       m_args(std::move(args)) {
   beast::error_code ec{}; // used when we don't need to throw all around
-  tcp::endpoint endpoint(net::ip::make_address(args.ip_address), args.port);
+  spdlog::info("Server running on {}:{}", m_args.ip_address, m_args.port);
+
+  tcp::endpoint endpoint(net::ip::make_address(m_args.ip_address), m_args.port);
   m_acceptor.open(endpoint.protocol(), ec);
   if (ec) {
     spdlog::error("Could not open socket: {}", ec.message());
@@ -40,9 +42,10 @@ server_t::server_t(net::io_context &context, command_line_interface_t &&args)
   m_isOpen = true;
 }
 
-void server_t::run() {
+bool server_t::run() {
   if (m_isOpen)
-    return acceptConnections();
+    acceptConnections();
+  return m_isOpen;
 }
 
 void server_t::onConnectionAccepted(beast::error_code const ec,

@@ -11,6 +11,9 @@
 #include "string_utils.hpp"
 
 namespace keep_my_journal {
+namespace utils {
+bool validate_address_paradigm(char const *address);
+}
 
 void store_exchanges_price_into_storage(zmq::context_t &context, bool &running,
                                         exchange_e const exchange) {
@@ -36,10 +39,12 @@ void store_exchanges_price_into_storage(zmq::context_t &context, bool &running,
 
     std::string_view view(serialBuffer.data(), serialBuffer.size());
     zmq::message_t message(view);
-    if (auto const optSize = senderSocket.send(message, zmq::send_flags::none);
-        !optSize.has_value()) {
+    auto const optSize = senderSocket.send(message, zmq::send_flags::none);
+    if (!optSize.has_value()) {
       spdlog::error("Unable to send message...");
+      continue;
     }
+
     serialBuffer.clear();
   }
 
@@ -48,11 +53,11 @@ void store_exchanges_price_into_storage(zmq::context_t &context, bool &running,
 }
 
 void start_prices_deposit_into_storage(bool &running) {
+  if (!utils::validate_address_paradigm(PRICE_MONITOR_STREAM_DEPOSIT_PATH))
+    return;
+
   int const threadCount = (int)std::thread::hardware_concurrency();
   zmq::context_t context{threadCount};
-
-  if (!std::filesystem::exists(PRICE_MONITOR_STREAM_DEPOSIT_PATH))
-    std::filesystem::create_directories(PRICE_MONITOR_STREAM_DEPOSIT_PATH);
 
   std::thread binanceDataSender{[&context, &running] {
     store_exchanges_price_into_storage(context, running, exchange_e::binance);

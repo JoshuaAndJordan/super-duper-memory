@@ -12,7 +12,7 @@ namespace keep_my_journal {
 namespace utils {
 std::string exchangesToString(exchange_e);
 std::string tradeTypeToString(trade_type_e tradeType);
-
+bool validate_address_paradigm(char const *address);
 } // namespace utils
 
 void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
@@ -21,20 +21,24 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
   auto const address =
       fmt::format("ipc://{}/{}", PRICE_MONITOR_STREAM_DEPOSIT_PATH, filename);
 
+  spdlog::info("In {}, and the address to use is {}", __func__, address);
+
   zmq::socket_t receivingSocket{msgContext, zmq::socket_type::sub};
+  receivingSocket.set(zmq::sockopt::subscribe, "");
+
   try {
     receivingSocket.connect(address);
   } catch (zmq::error_t const &e) {
-    spdlog::error("Error connecting to {}: {}", address, e.what());
-    return;
+    return spdlog::error("Error connecting to {}: {}", address, e.what());
   }
 
   auto &instruments = instrument_sink_t::get_unique_instruments(exchange);
-
   while (isRunning) {
     zmq::message_t message;
-    auto const optSize = receivingSocket.recv(message, zmq::recv_flags::none);
-    if (!optSize.has_value()) {
+
+    if (auto const optSize =
+            receivingSocket.recv(message, zmq::recv_flags::none);
+        !optSize.has_value()) {
       spdlog::error("There was an error receiving this message...");
       continue;
     }
@@ -51,9 +55,13 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
       continue;
     }
 
-    spdlog::info("New price alert: {} -> {} -> {}", instrument.name,
+#ifdef _DEBUG
+    spdlog::info("{}: New price alert: {} -> {} -> {}", filename,
+                 instrument.name,
                  utils::tradeTypeToString(instrument.tradeType),
                  instrument.currentPrice);
+#endif
+
     instruments.insert(std::move(instrument));
   }
 
@@ -62,11 +70,10 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
 }
 
 void monitor_tokens_latest_prices(bool &isRunning) {
-  if (!std::filesystem::exists(PRICE_MONITOR_STREAM_DEPOSIT_PATH))
-    std::filesystem::create_directories(PRICE_MONITOR_STREAM_DEPOSIT_PATH);
-
-  int const threadCount = (int)std::thread::hardware_concurrency();
-  zmq::context_t msgContext{threadCount};
+  constexpr int const totalExchanges = static_cast<int>(exchange_e::total);
+  zmq::context_t msgContext{totalExchanges};
+  if (!utils::validate_address_paradigm(PRICE_MONITOR_STREAM_DEPOSIT_PATH))
+    return;
 
   std::thread binancePrices{[&msgContext, &isRunning] {
     exchangesPriceWatcher(msgContext, isRunning, exchange_e::binance);

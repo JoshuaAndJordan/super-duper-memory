@@ -82,7 +82,7 @@ int main() {
   kucoinWatcher.join();
 
 #ifdef CRYPTOLOG_USING_MSGPACK
-  // dataTransmitter.join();
+  dataTransmitter.join();
 #endif
 
   ioContext.run();

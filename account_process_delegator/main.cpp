@@ -7,13 +7,13 @@
 #include "database_connector.hpp"
 #include "file_utils.hpp"
 #include "server.hpp"
+#include "spdlog/spdlog.h"
 
 namespace net = boost::asio;
 
 namespace keep_my_journal {
 void monitor_tokens_latest_prices(bool &isRunning);
 void account_stream_scheduled_task_writer(bool &isRunning);
-net::io_context &get_io_context();
 } // namespace keep_my_journal
 
 std::string BEARER_TOKEN_SECRET_KEY;
@@ -30,8 +30,21 @@ int main(int argc, char *argv[]) {
                         "Database config filename");
   cli_parser.add_option("-y", args.launch_type,
                         "Launch type(production, development)");
+
   CLI11_PARSE(cli_parser, argc, argv)
 
+#ifdef _DEBUG
+  if (!std::filesystem::exists(args.database_config_filename)) {
+    args.database_config_filename =
+        (std::filesystem::current_path() / ".." / "scripts" / "database.json")
+            .string();
+    if (!std::filesystem::exists(args.database_config_filename)) {
+      args.database_config_filename = (std::filesystem::current_path() / ".." /
+                                       ".." / "scripts" / "database.json")
+                                          .string();
+    }
+  }
+#endif
   auto const software_config = keep_my_journal::utils::parseConfigFile(
       args.database_config_filename, args.launch_type);
   if (!software_config) {
@@ -53,9 +66,8 @@ int main(int argc, char *argv[]) {
   auto &ioContext = keep_my_journal::get_io_context();
   auto server_instance =
       std::make_shared<keep_my_journal::server_t>(ioContext, std::move(args));
-  if (!(*server_instance))
+  if (!server_instance->run())
     return EXIT_FAILURE;
-  server_instance->run();
 
   boost::asio::ssl::context sslContext(
       boost::asio::ssl::context::tlsv12_client);

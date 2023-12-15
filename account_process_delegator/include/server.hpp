@@ -19,8 +19,7 @@ class server_t : public std::enable_shared_from_this<server_t> {
 
 public:
   server_t(net::io_context &context, command_line_interface_t &&args);
-  void run();
-  explicit operator bool() const { return m_isOpen; }
+  bool run();
 
 private:
   void onConnectionAccepted(beast::error_code ec, net::ip::tcp::socket socket);

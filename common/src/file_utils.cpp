@@ -62,8 +62,6 @@ read_object_json_file(std::string const &filename) {
       .get<json::object_t>();
 }
 
-void log_general_exception(std::exception const &e);
-
 std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
                                              std::string const &config_name) {
   auto const file_content_object = read_object_json_file(filename);
@@ -82,18 +80,21 @@ std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
       auto const temp_object_iter = temp_object.find("type");
       if (temp_object_iter != temp_object.cend() &&
           temp_object_iter->second == config_name) {
-        auto const db_data = temp_object.at("data").get<json::object_t>();
-        auto db_config = std::make_unique<db_config_t>();
+        auto const db_data =
+            temp_object.find("data")->second.get<json::object_t>();
 
+        auto db_config = std::make_unique<db_config_t>();
         // let's get out the compulsory field first
-        db_config->dbUsername = db_data.at("username").get<json::string_t>();
-        db_config->dbPassword = db_data.at("password").get<json::string_t>();
+        db_config->dbUsername =
+            db_data.find("username")->second.get<json::string_t>();
+        db_config->dbPassword =
+            db_data.find("password")->second.get<json::string_t>();
         if (db_config->dbPassword.find('@') != std::string::npos)
           boost::replace_all(db_config->dbPassword, "@", "\\@");
 
-        db_config->dbDns = db_data.at("db_dns").get<json::string_t>();
+        db_config->dbDns = db_data.find("db_dns")->second.get<json::string_t>();
         db_config->jwtSecretKey =
-            file_content_object->at("jwt_token").get<json::string_t>();
+            db_data.find("jwt_token")->second.get<json::string_t>();
         return db_config;
       }
     }
@@ -101,6 +102,20 @@ std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
     spdlog::error(e.what());
   }
   return nullptr;
+}
+
+bool validate_address_paradigm(char const *const address) {
+  if (strncmp(address, "ipc://", 6) == 0) {
+    if (!std::filesystem::exists(address)) {
+      spdlog::info("Path {} does not exist, creating it...");
+      std::error_code ec;
+      if (!std::filesystem::create_directories(address, ec)) {
+        spdlog::error("unable to create: {}", ec.value());
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 } // namespace keep_my_journal::utils

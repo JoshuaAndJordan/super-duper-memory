@@ -12,7 +12,8 @@
 namespace keep_my_journal {
 namespace utils {
 std::string exchangesToString(exchange_e);
-}
+bool validate_address_paradigm(char const *address);
+} // namespace utils
 
 utils::waitable_container_t<account_scheduled_task_t> taskMonitorQueue{};
 std::deque<account_monitor_task_result_t> monitoredTaskResults{};
@@ -68,6 +69,8 @@ void monitor_scheduled_tasks_result(bool &isRunning,
   static size_t const resultBufferLimit = 5'000;
 
   zmq::socket_t recvSocket(msgContext, zmq::socket_type::sub);
+  recvSocket.set(zmq::sockopt::subscribe, "");
+
   recvSocket.connect(
       fmt::format("ipc://{}", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH));
 
@@ -91,8 +94,8 @@ void monitor_scheduled_tasks_result(bool &isRunning,
 }
 
 void account_stream_scheduled_task_writer(bool &isRunning) {
-  if (!std::filesystem::exists(EXCHANGE_STREAM_TASK_SCHEDULER_PATH))
-    std::filesystem::create_directories(EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+  if (!utils::validate_address_paradigm(EXCHANGE_STREAM_TASK_SCHEDULER_PATH))
+    return;
 
   zmq::context_t msgContext{};
   msgpack::sbuffer buffer;

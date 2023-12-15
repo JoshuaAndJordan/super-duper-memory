@@ -32,6 +32,7 @@ void getFileContent(std::string const &filename, filter_t<T> filter,
   }
 }
 
+bool validate_address_paradigm(char const *address);
 bool createFileDirectory(std::filesystem::path const &path);
 void normalizePaths(std::string &str);
 void replaceSpecialChars(std::string &str);

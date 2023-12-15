@@ -24,10 +24,17 @@ instrument_type_t get_instrument_from_json(std::string_view const str,
       return {};
     inst.name = subjectIter->second.get<json::string_t>();
     auto priceIter = dataObject.find("price");
-    if (priceIter == dataObject.end() || !priceIter->second.is_string()) {
+    if (priceIter == dataObject.end()) {
+#ifdef _DEBUG
       assert(false);
+#else
       return {};
+#endif
     }
+    if (priceIter->second.is_string())
+      inst.currentPrice = std::stod(priceIter->second.get<json::string_t>());
+    else if (priceIter->second.is_number())
+      inst.currentPrice = priceIter->second.get<json::number_float_t>();
   } else {
     auto symbolIter = dataObject.find("symbol");
     if (symbolIter == dataObject.end() || !symbolIter->second.is_string())
@@ -37,8 +44,11 @@ instrument_type_t get_instrument_from_json(std::string_view const str,
     auto bestAskIter = dataObject.find("bestAskPrice");
     if (bestAskIter == dataObject.end() || bestBidIter == dataObject.end() ||
         !(bestBidIter->second.is_string() && bestAskIter->second.is_string())) {
+#ifdef _DEBUG
       assert(false);
+#else
       return {};
+#endif
     }
     auto const bidPrice = std::stod(bestBidIter->second.get<json::string_t>()),
                askPrice = std::stod(bestAskIter->second.get<json::string_t>());
@@ -310,9 +320,6 @@ void kucoin_price_stream_t::interpret_generic_messages() {
 }
 
 void kucoin_price_stream_t::send_ticker_subscription() {
-  if (m_tradedInstruments.empty())
-    return;
-
   if (m_subscriptionString.empty())
     m_subscriptionString = get_subscription_json();
 
