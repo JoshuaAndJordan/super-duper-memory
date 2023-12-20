@@ -6,6 +6,7 @@
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/ssl.hpp>
 #include <map>
+#include <optional>
 
 namespace keep_my_journal {
 namespace net = boost::asio;

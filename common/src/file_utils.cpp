@@ -105,14 +105,12 @@ std::unique_ptr<db_config_t> parseConfigFile(std::string const &filename,
 }
 
 bool validate_address_paradigm(char const *const address) {
-  if (strncmp(address, "ipc://", 6) == 0) {
-    if (!std::filesystem::exists(address)) {
-      spdlog::info("Path {} does not exist, creating it...");
-      std::error_code ec;
-      if (!std::filesystem::create_directories(address, ec)) {
-        spdlog::error("unable to create: {}", ec.value());
-        return false;
-      }
+  if (!std::filesystem::exists(address)) {
+    spdlog::info("Path {} does not exist, creating it...");
+    std::error_code ec;
+    if (!std::filesystem::create_directories(address, ec)) {
+      spdlog::error("unable to create: {}", ec.value());
+      return false;
     }
   }
   return true;

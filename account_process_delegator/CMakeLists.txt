@@ -105,7 +105,6 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 #Source Files
 set(SRC_FILES
         main.cpp
-        src/database_connector.cpp
         src/server.cpp
         src/session.cpp
         src/scheduled_account_tasks.cpp
@@ -115,7 +114,6 @@ source_group("Sources" FILES ${SRC_FILES})
 
 #Header Files
 set(HEADERS_FILES
-        include/database_connector.hpp
         include/server.hpp
         include/session.hpp
         include/cli.hpp

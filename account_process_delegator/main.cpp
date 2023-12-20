@@ -4,10 +4,8 @@
 #include <boost/asio/ssl/context.hpp>
 #include <thread>
 
-#include "database_connector.hpp"
 #include "file_utils.hpp"
 #include "server.hpp"
-#include "spdlog/spdlog.h"
 
 namespace net = boost::asio;
 
@@ -26,42 +24,7 @@ int main(int argc, char *argv[]) {
 
   cli_parser.add_option("-p", args.port, "port to bind server to");
   cli_parser.add_option("-a", args.ip_address, "IP address to use");
-  cli_parser.add_option("-d", args.database_config_filename,
-                        "Database config filename");
-  cli_parser.add_option("-y", args.launch_type,
-                        "Launch type(production, development)");
-
   CLI11_PARSE(cli_parser, argc, argv)
-
-#ifdef _DEBUG
-  if (!std::filesystem::exists(args.database_config_filename)) {
-    args.database_config_filename =
-        (std::filesystem::current_path() / ".." / "scripts" / "database.json")
-            .string();
-    if (!std::filesystem::exists(args.database_config_filename)) {
-      args.database_config_filename = (std::filesystem::current_path() / ".." /
-                                       ".." / "scripts" / "database.json")
-                                          .string();
-    }
-  }
-#endif
-  auto const software_config = keep_my_journal::utils::parseConfigFile(
-      args.database_config_filename, args.launch_type);
-  if (!software_config) {
-    std::cerr << "Unable to get database configuration values\n";
-    return EXIT_FAILURE;
-  }
-
-  auto &database_connector =
-      keep_my_journal::database_connector_t::s_get_db_connector();
-  database_connector->set_username(software_config->dbUsername);
-  database_connector->set_password(software_config->dbPassword);
-  database_connector->set_database_name(software_config->dbDns);
-
-  if (!database_connector->connect())
-    return EXIT_FAILURE;
-
-  BEARER_TOKEN_SECRET_KEY = software_config->jwtSecretKey;
 
   auto &ioContext = keep_my_journal::get_io_context();
   auto server_instance =

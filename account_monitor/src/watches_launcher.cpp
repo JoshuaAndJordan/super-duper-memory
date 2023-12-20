@@ -16,6 +16,9 @@ namespace net = boost::asio;
 namespace ssl = net::ssl;
 
 namespace keep_my_journal {
+namespace utils {
+bool validate_address_paradigm(char const *address);
+}
 
 class binance_stream_t;
 class kucoin_ua_stream_t;
@@ -46,6 +49,9 @@ void exchangeResultWatcher(std::string const &exchangeName,
                            bool &isRunning) {
   auto const address = fmt::format(
       "ipc://{}/{}", EXCHANGE_STREAM_RESULT_DEPOSIT_PATH, exchangeName);
+
+  spdlog::info("{} pub {}", __func__, address);
+
   zmq::socket_t writerSocket(msgContext, zmq::socket_type::pub);
   writerSocket.bind(address);
 
@@ -96,6 +102,7 @@ void binanceAccountMonitor(zmq::context_t &msgContext,
   zmq::socket_t receiverSocket(msgContext, zmq::socket_type::sub);
   auto const address =
       fmt::format("ipc://{}/binance", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+  spdlog::info("{} sub {}", __func__, address);
   receiverSocket.connect(address);
 
   while (isRunning) {
@@ -133,6 +140,8 @@ void kucoinAccountMonitor(zmq::context_t &msgContext,
   kucoin_stream_list_t streams{};
   auto const address =
       fmt::format("ipc://{}/kucoin", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+  spdlog::info("{} sub {}", __func__, address);
+
   zmq::socket_t receiverSocket(msgContext, zmq::socket_type::sub);
   receiverSocket.connect(address);
 
@@ -171,6 +180,8 @@ void okexAccountMonitor(zmq::context_t &msgContext, net::io_context &ioContext,
 
   auto const address =
       fmt::format("ipc://{}/okex", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+  spdlog::info("{} sub {}", __func__, address);
+
   receiverSocket.connect(address);
 
   while (isRunning) {
@@ -209,8 +220,8 @@ void okexResultWatcher(zmq::context_t &msgContext, bool &isRunning) {
 }
 
 void launchResultWriters(zmq::context_t &msgContext, bool &isRunning) {
-  if (!std::filesystem::exists(EXCHANGE_STREAM_RESULT_DEPOSIT_PATH))
-    std::filesystem::create_directories(EXCHANGE_STREAM_RESULT_DEPOSIT_PATH);
+  if (!utils::validate_address_paradigm(EXCHANGE_STREAM_RESULT_DEPOSIT_PATH))
+    return;
 
   std::thread binanceResultWriter{
       [&] { binanceResultWatcher(msgContext, isRunning); }};
@@ -223,14 +234,15 @@ void launchResultWriters(zmq::context_t &msgContext, bool &isRunning) {
 }
 
 void start_task_status_writer(zmq::context_t &msgContext, bool &isRunning) {
-  if (!std::filesystem::exists(SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH)) {
-    std::filesystem::create_directories(
-        SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH);
-  }
+  if (!utils::validate_address_paradigm(
+          SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH))
+    return;
 
   zmq::socket_t senderSocket(msgContext, zmq::socket_type::pub);
-  senderSocket.bind(
-      fmt::format("ipc://{}", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH));
+  auto const address = fmt::format(
+      "ipc://{}/writer", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH);
+  spdlog::info("{} pub {}", __func__, address);
+  senderSocket.bind(address);
 
   msgpack::sbuffer buffer;
   while (isRunning) {
@@ -246,8 +258,8 @@ void start_task_status_writer(zmq::context_t &msgContext, bool &isRunning) {
 
 void externalAccountMessageMonitor(net::io_context &ioContext,
                                    ssl::context &sslContext, bool &isRunning) {
-  if (!std::filesystem::exists(EXCHANGE_STREAM_TASK_SCHEDULER_PATH))
-    std::filesystem::create_directories(EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+  if (!utils::validate_address_paradigm(EXCHANGE_STREAM_TASK_SCHEDULER_PATH))
+    return;
 
   zmq::context_t context{(int)std::thread::hardware_concurrency()};
 

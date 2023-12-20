@@ -13,16 +13,16 @@ enum class task_operation_e {
 
 struct account_monitor_task_result_t {
   int64_t userID;
-  int64_t taskID;
   task_state_e state;
+  std::string taskID;
 #ifdef CRYPTOLOG_USING_MSGPACK
-  MSGPACK_DEFINE(userID, taskID, state);
+  MSGPACK_DEFINE(userID, state, taskID);
 #endif
 };
 
 struct account_scheduled_task_t {
   int64_t userID{};
-  int64_t taskID{};
+  std::string taskID{};
   std::string apiKey{};
   std::string secretKey{};
   std::string passphrase{};

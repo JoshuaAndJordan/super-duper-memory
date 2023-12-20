@@ -55,13 +55,6 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
       continue;
     }
 
-#ifdef _DEBUG
-    spdlog::info("{}: New price alert: {} -> {} -> {}", filename,
-                 instrument.name,
-                 utils::tradeTypeToString(instrument.tradeType),
-                 instrument.currentPrice);
-#endif
-
     instruments.insert(std::move(instrument));
   }
 

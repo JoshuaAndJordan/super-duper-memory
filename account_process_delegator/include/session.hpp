@@ -19,33 +19,11 @@
 #define BN_REQUEST_PARAM                                                       \
   (string_request_t const &request, url_query_t const &optional_query)
 
-#define ROUTE_CALLBACK(callback)                                               \
-  [self = shared_from_this()] BN_REQUEST_PARAM {                               \
-    self->callback(request, optional_query);                                   \
-  }
-
 #define JSON_ROUTE_CALLBACK(callback)                                          \
   [self = shared_from_this()] BN_REQUEST_PARAM {                               \
     if (!self->is_json_request())                                              \
       return self->error_handler(                                              \
           bad_request("invalid content-type", request));                       \
-    self->callback(request, optional_query);                                   \
-  }
-
-#define AUTH_ROUTE_CALLBACK(callback)                                          \
-  [self = shared_from_this()] BN_REQUEST_PARAM {                               \
-    if (!self->is_validated_user(request))                                     \
-      return self->error_handler(permission_denied(request));                  \
-    self->callback(request, optional_query);                                   \
-  }
-
-#define JSON_AUTH_ROUTE_CALLBACK(callback)                                     \
-  [self = shared_from_this()] BN_REQUEST_PARAM {                               \
-    if (!self->is_json_request())                                              \
-      return self->error_handler(                                              \
-          bad_request("invalid content-type", request));                       \
-    if (!self->is_validated_user(request))                                     \
-      return self->error_handler(permission_denied(request));                  \
     self->callback(request, optional_query);                                   \
   }
 
@@ -138,29 +116,13 @@ private:
   void error_handler(string_response_t &&response, bool close_socket = false);
   void on_data_written(beast::error_code ec, std::size_t bytes_written);
   void handle_requests(string_request_t const &request);
-  void index_page_handler(string_request_t const &request,
-                          url_query_t const &optional_query);
-  void get_file_handler(string_request_t const &request,
-                        url_query_t const &optional_query);
   void get_trading_pairs_handler(string_request_t const &request,
                                  url_query_t const &optional_query);
-  void get_price_handler(string_request_t const &request,
-                         url_query_t const &optional_query);
-  void user_login_handler(string_request_t const &request,
-                          url_query_t const &optional_query);
-  void register_new_user(string_request_t const &request,
-                         url_query_t const &optional_query);
   void add_new_pricing_tasks(string_request_t const &, url_query_t const &);
-  void list_pricing_tasks(string_request_t const &, url_query_t const &);
   void monitor_user_account(string_request_t const &, url_query_t const &);
-  bool is_validated_user(string_request_t const &);
   bool is_json_request() const;
   void http_write(beast::tcp_stream &, file_serializer_t &,
                   std::function<void()>);
-  static bool extract_bearer_token(string_request_t const &, std::string &);
-  static std::string generate_bearer_token(std::string const &username,
-                                           int64_t user_id, time_t current_time,
-                                           std::string const &secret_key);
 
 private:
   static string_response_t json_success(json const &body,
@@ -169,18 +131,13 @@ private:
                                    string_request_t const &);
   static string_response_t bad_request(std::string const &message,
                                        string_request_t const &);
-  static string_response_t permission_denied(string_request_t const &);
   static string_response_t not_found(string_request_t const &);
-  static string_response_t upgrade_required(string_request_t const &);
   static string_response_t method_not_allowed(string_request_t const &request);
   static string_response_t server_error(std::string const &, error_type_e,
                                         string_request_t const &);
   static string_response_t get_error(std::string const &, error_type_e,
                                      http::status, string_request_t const &);
   static url_query_t split_optional_queries(boost::string_view const &args);
-  template <typename Func>
-  void send_file(std::filesystem::path const &, boost::string_view,
-                 string_request_t const &, Func &&func);
 
 public:
   session_t(net::io_context &io, net::ip::tcp::socket &&socket);
@@ -189,38 +146,6 @@ public:
   void run();
 };
 
-template <typename Func>
-void session_t::send_file(std::filesystem::path const &file_path,
-                          boost::string_view const content_type,
-                          string_request_t const &request, Func &&func) {
-  std::error_code ec_{};
-  if (!std::filesystem::exists(file_path, ec_))
-    return error_handler(bad_request("file does not exist", request));
-
-  http::file_body::value_type file;
-  beast::error_code ec{};
-  file.open(file_path.string().c_str(), beast::file_mode::read, ec);
-  if (ec) {
-    return error_handler(server_error("unable to open file specified",
-                                      error_type_e::ServerError, request));
-  }
-
-  auto &response =
-      m_fileResponse.emplace(std::piecewise_construct, std::make_tuple(),
-                             std::make_tuple(m_fileAlloc));
-  response.result(http::status::ok);
-  response.keep_alive(request.keep_alive());
-  response.set(http::field::server, "okex-feed");
-  response.set(http::field::content_type, content_type);
-  response.body() = std::move(file);
-  response.prepare_payload();
-
-  m_fileSerializer.emplace(*m_fileResponse);
-  http_write(m_tcpStream, *m_fileSerializer, func);
-}
-
-std::optional<json::object_t>
-decode_bearer_token(std::string const &token, std::string const &secret_key);
 std::string get_alphanum_tablename(std::string);
 
 } // namespace keep_my_journal

@@ -39,7 +39,7 @@ queue_account_stream_tasks(account_scheduled_task_t const &task) {
   } while (iter == monitoredTaskResults.end() && (now < max_time_limit));
 
   if (iter != monitoredTaskResults.end()) {
-    auto const result = *iter;
+    auto result = *iter;
     monitoredTaskResults.erase(iter);
     return result;
   }
@@ -62,6 +62,8 @@ void write_scheduled_task_to_stream(zmq::context_t &msgContext,
   auto const optSize = sendingSocket.send(message, zmq::send_flags::none);
   if (!optSize.has_value())
     throw std::runtime_error("unable to send message on address " + address);
+  sendingSocket.unbind(address);
+  sendingSocket.close();
 }
 
 void monitor_scheduled_tasks_result(bool &isRunning,
@@ -71,8 +73,11 @@ void monitor_scheduled_tasks_result(bool &isRunning,
   zmq::socket_t recvSocket(msgContext, zmq::socket_type::sub);
   recvSocket.set(zmq::sockopt::subscribe, "");
 
-  recvSocket.connect(
-      fmt::format("ipc://{}", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH));
+  auto const address = fmt::format(
+      "ipc://{}/writer", SCHEDULED_ACCOUNT_TASK_IMMEDIATE_RESULT_PATH);
+  spdlog::info("{} sub {}", __func__, address);
+
+  recvSocket.connect(address);
 
   while (isRunning) {
     zmq::message_t message{};
