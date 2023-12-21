@@ -21,7 +21,9 @@ struct scheduled_price_task_t {
     price_direction_e direction;
   };
 
-  int task_id = 0;
+  std::string task_id;
+  std::string user_id;
+
   std::vector<std::string> tokens;
   trade_type_e tradeType = trade_type_e::total;
   exchange_e exchange = exchange_e::total;
@@ -80,5 +82,8 @@ class global_price_task_sink_t {
 };
 
 bool schedule_new_price_task(scheduled_price_task_t);
+void stop_scheduled_price_task(scheduled_price_task_t const &taskInfo);
 void send_price_task_result(scheduled_price_task_result_t const &);
+std::vector<scheduled_price_task_t>
+get_price_tasks_for_user(std::string const &userID);
 } // namespace keep_my_journal

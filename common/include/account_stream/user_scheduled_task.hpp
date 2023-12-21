@@ -12,8 +12,8 @@ enum class task_operation_e {
 };
 
 struct account_monitor_task_result_t {
-  int64_t userID;
   task_state_e state;
+  std::string userID;
   std::string taskID;
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(userID, state, taskID);
@@ -21,7 +21,7 @@ struct account_monitor_task_result_t {
 };
 
 struct account_scheduled_task_t {
-  int64_t userID{};
+  std::string userID{};
   std::string taskID{};
   std::string apiKey{};
   std::string secretKey{};
@@ -37,7 +37,7 @@ struct account_scheduled_task_t {
 };
 
 struct account_info_t {
-  int64_t userID = 0;
+  std::string userID;
   std::string apiKey{};
   std::string secretKey{};
   std::string passphrase{};

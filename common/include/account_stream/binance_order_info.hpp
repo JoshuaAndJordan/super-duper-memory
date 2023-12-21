@@ -27,12 +27,12 @@ struct ws_order_info_t {
   std::string lastExecutedPrice{};
   std::string commissionAmount{};
   std::string commissionAsset{};
-  std::string tradeID{};
+  std::string userID{};
 
+  std::string tradeID{};
   uint64_t eventTime{};
   uint64_t transactionTime{};
   uint64_t createdTime{};
-  uint64_t userID{};
 
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(instrumentID, orderSide, orderType, timeInForce,
@@ -47,9 +47,9 @@ struct ws_order_info_t {
 struct ws_balance_info_t {
   std::string instrumentID{};
   std::string balance{};
+  std::string userID{};
   uint64_t eventTime = 0;
   uint64_t clearTime = 0;
-  uint64_t userID = 0;
 
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(instrumentID, balance, eventTime, clearTime, userID);
@@ -60,10 +60,10 @@ struct ws_account_update_t {
   std::string instrumentID;
   std::string freeAmount;
   std::string lockedAmount;
+  std::string userID;
 
   uint64_t eventTime = 0;
   uint64_t lastAccountUpdate = 0;
-  uint64_t userID = 0;
 
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(instrumentID, freeAmount, lockedAmount, eventTime,

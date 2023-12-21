@@ -3,11 +3,23 @@
 #include "scheduled_price_tasks.hpp"
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_context.hpp>
+#include <map>
 #include <optional>
 
 namespace net = boost::asio;
 
 namespace keep_my_journal {
+struct scheduled_price_task_comparator_t {
+  bool operator()(scheduled_price_task_t const &a,
+                  scheduled_price_task_t const &b) const {
+    return std::tie(a.user_id, a.task_id) < std::tie(b.user_id, b.task_id);
+  }
+};
+
+std::map<scheduled_price_task_t, std::shared_ptr<price_task_t>,
+         scheduled_price_task_comparator_t>
+    global_price_tasks;
+
 class time_based_watch_price_t::time_based_watch_price_impl_t
     : public std::enable_shared_from_this<time_based_watch_price_impl_t> {
   net::io_context &m_ioContext;
@@ -218,8 +230,10 @@ void progress_based_watch_price_t::run() {
 }
 
 void progress_based_watch_price_t::stop() {
-  if (m_impl)
+  if (m_impl) {
     m_impl->stop();
+    m_impl.reset();
+  }
 }
 
 bool passed_valid_task_check(scheduled_price_task_t &task) {
@@ -252,23 +266,49 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
 
   auto &ioContext = get_io_context();
   static auto &queue = global_price_task_sink_t::get_all_scheduled_tasks();
-  std::shared_ptr<price_task_t> priceTask = nullptr;
+  std::shared_ptr<price_task_t> priceTask;
 
   if (taskInfo.percentProp) {
     priceTask =
         std::make_shared<progress_based_watch_price_t>(ioContext, taskInfo);
   } else if (taskInfo.timeProp) {
     priceTask = std::make_shared<time_based_watch_price_t>(ioContext, taskInfo);
-  } else
+  } else {
     return false;
+  }
 
-  priceTask->run();
-  queue.insert(priceTask);
-  return true;
+  if (priceTask) {
+    priceTask->run();
+    queue.insert(priceTask);
+
+    taskInfo.status = task_state_e::running;
+    global_price_tasks[taskInfo] = priceTask;
+  }
+
+  return priceTask != nullptr;
 }
 
 void send_price_task_result(scheduled_price_task_result_t const &) {
   // todo
+}
+
+void stop_scheduled_price_task(scheduled_price_task_t const &taskInfo) {
+  auto taskIter = global_price_tasks.find(taskInfo);
+  if (taskIter != global_price_tasks.end()) {
+    taskIter->second->stop();
+    global_price_tasks.erase(taskIter);
+  }
+}
+
+std::vector<scheduled_price_task_t>
+get_price_tasks_for_user(std::string const &userID) {
+  std::vector<scheduled_price_task_t> taskList;
+
+  for (auto const &[task, _] : global_price_tasks) {
+    if (task.user_id == userID)
+      taskList.push_back(task);
+  }
+  return taskList;
 }
 
 } // namespace keep_my_journal

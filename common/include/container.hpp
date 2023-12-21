@@ -14,7 +14,7 @@ namespace keep_my_journal::utils {
 template <typename T> struct locked_set_t {
 private:
   std::unordered_set<T> m_set{};
-  mutable std::mutex m_mutex{};
+  std::mutex m_mutex{};
 
 public:
   ~locked_set_t() = default;
@@ -40,8 +40,7 @@ public:
                  std::move_iterator<iter_t>(std::end(container)));
   }
 
-  template <typename Func>
-  std::vector<T> all_items_matching(Func &&filter) const {
+  template <typename Func> std::vector<T> all_items_matching(Func &&filter) {
     std::lock_guard<std::mutex> lock_g{m_mutex};
     std::vector<T> items{};
     for (auto const &item : m_set) {
@@ -62,12 +61,13 @@ public:
     return m_set.empty();
   }
 
-  std::vector<T> to_list() const {
+  std::vector<T> to_list() {
     std::lock_guard<std::mutex> lockGuard(m_mutex);
-    return std::vector<T>(m_set.cbegin(), m_set.cend());
+    auto list = std::vector<T>(m_set.cbegin(), m_set.cend());
+    return list;
   }
 
-  std::optional<T> find_item(T const &a) const {
+  std::optional<T> find_item(T const &a) {
     auto iter = m_set.find(a);
     if (iter != m_set.cend())
       return std::nullopt;

@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 
 # Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
-set(PROJECT_NAME account_monitor)
+set(PROJECT_NAME message_delegator)
 
 ## load in pkg-config support
 find_package(PkgConfig)
@@ -106,25 +106,14 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 
 # Source Files
 set(SRC_FILES
-  main.cpp
-  src/binance_user_stream.cpp
-  src/okex_user_stream.cpp
-  src/kucoin_user_stream.cpp
-  src/userstream_keyalive.cpp
-  src/watches_launcher.cpp)
+  main.cpp)
 
 source_group("Sources" FILES ${SRC_FILES})
 
 # Header Files
-set(HEADERS_FILES
-  include/binance_user_stream.hpp
-  include/stream_results.hpp
-  include/userstream_keyalive.hpp
-  include/okex_user_stream.hpp)
+set(HEADERS_FILES)
 
 source_group("Headers" FILES ${HEADERS_FILES})
-
-# Add executable to build.
 
 # Add executable to build.
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADERS_FILES})

@@ -15,10 +15,8 @@
 #include "crypto_utils.hpp"
 #include "enumerations.hpp"
 #include "json_utils.hpp"
-#include "random_utils.hpp"
 #include "scheduled_price_tasks.hpp"
 #include "string_utils.hpp"
-#include "user_info.hpp"
 
 namespace keep_my_journal {
 
@@ -129,6 +127,10 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
                               JSON_ROUTE_CALLBACK(get_trading_pairs_handler));
   m_endpointApis.add_endpoint("/account_monitoring_task", {verb::post},
                               JSON_ROUTE_CALLBACK(monitor_user_account));
+  m_endpointApis.add_endpoint("/price_task_status", {verb::get},
+                              JSON_ROUTE_CALLBACK(get_prices_task_status));
+  m_endpointApis.add_endpoint("/stop_price_task", {verb::post},
+                              JSON_ROUTE_CALLBACK(stop_prices_task));
   return shared_from_this();
 }
 
@@ -266,6 +268,42 @@ void session_t::get_trading_pairs_handler(string_request_t const &request,
   return send_response(json_success(names, request));
 }
 
+void session_t::get_prices_task_status(string_request_t const &request,
+                                       url_query_t const &optional_query) {
+  auto const user_id_iter = optional_query.find("user_id");
+  if (user_id_iter == optional_query.end() || user_id_iter->second.empty())
+    return error_handler(bad_request("query `user_id` missing", request));
+  auto const task_list =
+      get_price_tasks_for_user(user_id_iter->second.to_string());
+  return send_response(json_success(task_list, request));
+}
+
+void session_t::stop_prices_task(string_request_t const &request,
+                                 url_query_t const &) {
+  try {
+    auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
+    auto const taskListIter = jsonRoot.find("task_list");
+    auto const userIDIter = jsonRoot.find("user_id");
+    if (utils::anyElementIsInvalid(jsonRoot, taskListIter, userIDIter)) {
+      throw std::runtime_error("key data needed to schedule task is missing");
+    }
+
+    auto const userID = userIDIter->second.get<json::string_t>();
+    auto const taskList = taskListIter->second.get<json::array_t>();
+    scheduled_price_task_t task;
+    for (auto const &temp : taskList) {
+      task.task_id = temp.get<json::string_t>();
+      task.user_id = userID;
+      stop_scheduled_price_task(task);
+    }
+
+    return send_response(json_success(json::array_t{}, request));
+  } catch (std::exception const &e) {
+    spdlog::error(e.what());
+    return error_handler(bad_request("JSON object is invalid", request));
+  }
+}
+
 void session_t::monitor_user_account(string_request_t const &request,
                                      url_query_t const &) {
   try {
@@ -276,13 +314,16 @@ void session_t::monitor_user_account(string_request_t const &request,
     auto const apiKeyIter = jsonRoot.find("api_key");
     auto const tradeTypeIter = jsonRoot.find("trade_type");
     auto const taskIDIter = jsonRoot.find("task_id");
+    auto const userIDIter = jsonRoot.find("user_id");
     if (utils::anyElementIsInvalid(jsonRoot, tradeTypeIter, exchangeIter,
                                    secretKeyIter, passphraseIter, apiKeyIter,
-                                   taskIDIter))
-      throw std::runtime_error("exchange/secret_key/passphrase missing");
+                                   taskIDIter, userIDIter)) {
+      throw std::runtime_error("key data needed to schedule task is missing");
+    }
 
     account_scheduled_task_t task{};
     task.taskID = taskIDIter->second.get<json::string_t>();
+    task.userID = userIDIter->second.get<json::string_t>();
     task.exchange =
         utils::stringToExchange(exchangeIter->second.get<json::string_t>());
     task.tradeType =
@@ -298,7 +339,6 @@ void session_t::monitor_user_account(string_request_t const &request,
           bad_request("Invalid trade type specified for kucoin data", request));
     }
 
-    task.userID = m_sessionData.userID;
     task.passphrase = passphraseIter->second.get<json::string_t>();
     task.secretKey = secretKeyIter->second.get<json::string_t>();
     task.apiKey = apiKeyIter->second.get<json::string_t>();
@@ -340,8 +380,8 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
     auto const json_job_list = json_root.at("contracts").get<json::array_t>();
     size_t const job_size = json_job_list.size();
 
-    std::vector<scheduled_price_task_t> scheduled_tasks;
-    scheduled_tasks.reserve(job_size);
+    std::vector<scheduled_price_task_t> erredTasks;
+    erredTasks.reserve(job_size);
 
     for (size_t i = 0; i < job_size; ++i) {
       auto const &json_object = json_job_list[i].get<json::object_t>();
@@ -410,26 +450,14 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
       }
 
       new_task.status = task_state_e::initiated;
-      scheduled_tasks.emplace_back(std::move(new_task));
-    }
-
-    std::vector<scheduled_price_task_t> erredTasks;
-    erredTasks.reserve(scheduled_tasks.size());
-
-    // add each tasks to the task schedule, roll back if any is erratic
-    for (auto &new_task : scheduled_tasks) {
       if (!schedule_new_price_task(new_task))
         erredTasks.push_back(new_task);
-    }
-
-    if (!erredTasks.empty()) {
-      auto const errorMessage = fmt::format("unable to add some tasks");
-      return error_handler(bad_request(errorMessage, request));
     }
 
     json::object_t result;
     result["status"] = static_cast<int>(error_type_e::NoError);
     result["message"] = "OK";
+    result["failed"] = erredTasks;
 
     if (!request_id.empty())
       result["id"] = request_id;

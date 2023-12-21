@@ -39,7 +39,6 @@ namespace http = beast::http;
 
 using string_response_t = http::response<http::string_body>;
 using string_request_t = http::request<http::string_body>;
-using dynamic_request_t = http::request_parser<http::string_body>;
 using url_query_t = std::map<boost::string_view, boost::string_view>;
 using string_body_ptr =
     std::unique_ptr<http::request_parser<http::string_body>>;
@@ -55,12 +54,6 @@ struct rule_t {
 
   rule_t(std::initializer_list<http::verb> const &verbs, callback_t callback)
       : verbs(verbs), routeCallback{std::move(callback)} {}
-};
-
-struct session_metadata_t {
-  std::string username{};
-  time_t loginTime = 0;
-  int64_t userID{};
 };
 
 class endpoint_t {
@@ -97,7 +90,6 @@ class session_t : public std::enable_shared_from_this<session_t> {
   std::optional<http::request_parser<http::empty_body>> m_emptyBodyParser{};
   string_body_ptr m_clientRequest{};
   boost::string_view m_contentType{};
-  session_metadata_t m_sessionData{};
   std::shared_ptr<void> m_resp;
   endpoint_t m_endpointApis;
   std::optional<http::response<http::file_body, http::basic_fields<alloc_t>>>
@@ -105,7 +97,6 @@ class session_t : public std::enable_shared_from_this<session_t> {
   alloc_t m_fileAlloc{8 * 1'024};
   // The file-based response serializer.
   std::optional<file_serializer_t> m_fileSerializer = std::nullopt;
-  static std::unordered_map<std::string, session_metadata_t> m_bearerTokenMap;
 
 private:
   void http_read_data();
@@ -120,6 +111,8 @@ private:
                                  url_query_t const &optional_query);
   void add_new_pricing_tasks(string_request_t const &, url_query_t const &);
   void monitor_user_account(string_request_t const &, url_query_t const &);
+  void get_prices_task_status(string_request_t const &, url_query_t const &);
+  void stop_prices_task(string_request_t const &, url_query_t const &);
   bool is_json_request() const;
   void http_write(beast::tcp_stream &, file_serializer_t &,
                   std::function<void()>);
