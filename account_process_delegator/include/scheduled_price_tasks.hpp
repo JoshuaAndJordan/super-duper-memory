@@ -1,7 +1,11 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
-#include "price_stream/commodity.hpp"
+#include "price_stream/tasks.hpp"
+
+#ifdef CRYPTOLOG_USING_MSGPACK
+#include <msgpack.hpp>
+#endif
 
 namespace boost::asio {
 class io_context;
@@ -10,32 +14,6 @@ class io_context;
 namespace net = boost::asio;
 
 namespace keep_my_journal {
-struct scheduled_price_task_t {
-  struct timed_based_property_t {
-    uint64_t timeMS{};
-    duration_unit_e duration;
-  };
-
-  struct percentage_based_property_t {
-    double percentage{};
-    price_direction_e direction;
-  };
-
-  std::string task_id;
-  std::string user_id;
-
-  std::vector<std::string> tokens;
-  trade_type_e tradeType = trade_type_e::total;
-  exchange_e exchange = exchange_e::total;
-  std::optional<percentage_based_property_t> percentProp = std::nullopt;
-  std::optional<timed_based_property_t> timeProp = std::nullopt;
-  task_state_e status;
-};
-
-struct scheduled_price_task_result_t {
-  scheduled_price_task_t task;
-  std::vector<instrument_type_t> result;
-};
 
 class price_task_t {
 protected:

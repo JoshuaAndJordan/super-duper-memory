@@ -9,3 +9,5 @@
   "/tmp/cryptolog/stream/account/result"
 
 #define PRICE_MONITOR_STREAM_DEPOSIT_PATH "/tmp/cryptolog/stream/price"
+
+#define PRICE_MONITOR_TASK_RESULT_PATH "/tmp/cryptolog/stream/price/result"

@@ -86,7 +86,9 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 set(SRC_FILES
         src/crypto_utils.cpp
         src/file_utils.cpp
-        src/https_rest_api.cpp
+        src/json_utils.cpp
+        src/http_rest_client.cpp
+        src/https_rest_client.cpp
         src/random_utils.cpp
         src/string_utils.cpp
         src/uri.cpp)
@@ -100,7 +102,7 @@ set(HEADERS_FILES
         include/enumerations.hpp
         include/fields_alloc.hpp
         include/file_utils.hpp
-        include/https_rest_api.hpp
+        include/https_rest_client.hpp
         include/json_utils.hpp
         include/random_utils.hpp
         include/string_utils.hpp
@@ -108,7 +110,10 @@ set(HEADERS_FILES
         include/account_stream/okex_order_info.hpp
         include/account_stream/binance_order_info.hpp
         include/price_stream/commodity.hpp
-        include/macro_defines.hpp)
+        include/macro_defines.hpp
+        include/price_stream/tasks.hpp
+        include/http_rest_client.hpp
+        include/http_client.hpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
 

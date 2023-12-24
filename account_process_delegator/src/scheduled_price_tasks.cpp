@@ -1,10 +1,14 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
 #include "scheduled_price_tasks.hpp"
+#include "macro_defines.hpp"
+
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_context.hpp>
+#include <cppzmq/zmq.hpp>
 #include <map>
 #include <optional>
+#include <spdlog/spdlog.h>
 
 namespace net = boost::asio;
 
@@ -16,6 +20,7 @@ struct scheduled_price_task_comparator_t {
   }
 };
 
+utils::waitable_container_t<scheduled_price_task_result_t> global_result_list;
 std::map<scheduled_price_task_t, std::shared_ptr<price_task_t>,
          scheduled_price_task_comparator_t>
     global_price_tasks;
@@ -288,8 +293,8 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
   return priceTask != nullptr;
 }
 
-void send_price_task_result(scheduled_price_task_result_t const &) {
-  // todo
+void send_price_task_result(scheduled_price_task_result_t const &result) {
+  global_result_list.append(result);
 }
 
 void stop_scheduled_price_task(scheduled_price_task_t const &taskInfo) {
@@ -311,4 +316,23 @@ get_price_tasks_for_user(std::string const &userID) {
   return taskList;
 }
 
+void price_result_list_watcher(bool &isRunning) {
+  auto const address = fmt::format("ipc://{}", PRICE_MONITOR_TASK_RESULT_PATH);
+
+  zmq::context_t msgContext;
+  msgpack::sbuffer buffer;
+  zmq::socket_t sendingSocket(msgContext, zmq::socket_type::pub);
+  sendingSocket.bind(address);
+
+  while (isRunning) {
+    auto result = global_result_list.get();
+    msgpack::pack(buffer, result);
+    std::string_view const v(buffer.data(), buffer.size());
+
+    zmq::message_t message(v);
+    auto const optSize = sendingSocket.send(message, zmq::send_flags::none);
+    if (!optSize.has_value())
+      spdlog::error("unable to send message on address " + address);
+  }
+}
 } // namespace keep_my_journal

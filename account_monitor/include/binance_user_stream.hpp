@@ -7,7 +7,7 @@
 #include <boost/beast/websocket/stream.hpp>
 #include <memory>
 
-#include "https_rest_api.hpp"
+#include "https_rest_client.hpp"
 #include "json_utils.hpp"
 
 #include "account_stream/binance_order_info.hpp"

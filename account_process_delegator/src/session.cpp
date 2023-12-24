@@ -88,33 +88,6 @@ endpoint_t::get_rules(boost::string_view const &target) {
   return get_rules(target.to_string());
 }
 
-void to_json(json &j, instrument_type_t const &instr) {
-  j = json{{"name", instr.name},
-           {"price", instr.currentPrice},
-           {"open24hr", instr.open24h},
-           {"type", utils::tradeTypeToString(instr.tradeType)}};
-}
-
-void to_json(json &j, scheduled_price_task_t const &data) {
-  json::object_t obj;
-  obj["task_id"] = data.task_id;
-  obj["exchange"] = utils::exchangesToString(data.exchange);
-  obj["trade_type"] = utils::tradeTypeToString(data.tradeType);
-  obj["symbols"] = data.tokens;
-
-  if (data.timeProp) {
-    obj["intervals"] = std::chrono::duration_cast<std::chrono::seconds>(
-                           std::chrono::milliseconds(data.timeProp->timeMS))
-                           .count();
-    obj["duration"] = "seconds";
-  } else if (data.percentProp) {
-    obj["direction"] = data.percentProp->percentage < 0 ? "down" : "up";
-    obj["percentage"] = std::abs(data.percentProp->percentage);
-  }
-
-  j = obj;
-}
-
 session_t::session_t(net::io_context &io, net::ip::tcp::socket &&socket)
     : m_ioContext{io}, m_tcpStream{std::move(socket)} {}
 

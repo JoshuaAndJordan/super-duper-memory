@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
 #include "kucoin_price_stream.hpp"
-#include "https_rest_api.hpp"
+#include "https_rest_client.hpp"
 #include "random_utils.hpp"
 #include <spdlog/spdlog.h>
 

@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #include "binance_price_stream.hpp"
 #include "crypto_utils.hpp"
-#include "https_rest_api.hpp"
+#include "https_rest_client.hpp"
 #include <spdlog/spdlog.h>
 
 namespace keep_my_journal {

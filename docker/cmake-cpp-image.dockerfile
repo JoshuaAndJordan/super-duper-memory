@@ -43,8 +43,7 @@ RUN rm -rf cppzmq
 
 RUN mkdir -p run_crypto
 WORKDIR run_crypto
-RUN mkdir -p log log/account_monitor log/price_monitor log/process_delegator log/nginx
+RUN mkdir -p log log/account_monitor log/price_monitor log/process_delegator log/message_delegator log/nginx
 
 COPY docker/files/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/files/nginx.conf /etc/nginx/nginx.conf
-

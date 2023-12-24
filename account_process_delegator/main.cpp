@@ -12,6 +12,7 @@ namespace net = boost::asio;
 namespace keep_my_journal {
 void monitor_tokens_latest_prices(bool &isRunning);
 void account_stream_scheduled_task_writer(bool &isRunning);
+void price_result_list_watcher(bool &isRunning);
 } // namespace keep_my_journal
 
 std::string BEARER_TOKEN_SECRET_KEY;
@@ -43,13 +44,21 @@ int main(int argc, char *argv[]) {
     // connect to the price watching process and get the latest prices from the
     // price_stream
     std::thread{[&isRunning] {
+      // defined in latest_prices_watcher.cpp
       keep_my_journal::monitor_tokens_latest_prices(isRunning);
     }}.detach();
 
     // launch sockets that writes monitoring data to wire
     std::thread{[&isRunning] {
       // account activities include balance change, orders, trades etc
+      // defined in scheduled_account_tasks.cpp
       keep_my_journal::account_stream_scheduled_task_writer(isRunning);
+    }}.detach();
+
+    // monitors the percentage/time-based price task results
+    std::thread{[&isRunning] {
+      // defined in scheduled_price_tasks.cpp
+      keep_my_journal::price_result_list_watcher(isRunning);
     }}.detach();
   }
 
