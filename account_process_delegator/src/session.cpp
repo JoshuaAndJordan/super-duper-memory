@@ -18,6 +18,9 @@
 #include "scheduled_price_tasks.hpp"
 #include "string_utils.hpp"
 
+using keep_my_journal::instrument_exchange_set_t;
+extern instrument_exchange_set_t uniqueInstruments;
+
 namespace keep_my_journal {
 
 std::optional<account_monitor_task_result_t>
@@ -94,16 +97,18 @@ session_t::session_t(net::io_context &io, net::ip::tcp::socket &&socket)
 std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   using http::verb;
 
-  m_endpointApis.add_endpoint("/add_pricing_task", {verb::post},
+  m_endpointApis.add_endpoint("/add_pricing_tasks", {verb::post},
                               JSON_ROUTE_CALLBACK(add_new_pricing_tasks));
+  m_endpointApis.add_endpoint("/list_price_tasks", {verb::get},
+                              JSON_ROUTE_CALLBACK(get_prices_task_status));
+  m_endpointApis.add_endpoint("/stop_price_tasks", {verb::post},
+                              JSON_ROUTE_CALLBACK(stop_prices_task));
+  m_endpointApis.add_endpoint("/account_monitoring_tasks", {verb::post},
+                              JSON_ROUTE_CALLBACK(monitor_user_account));
   m_endpointApis.add_endpoint("/trading_pairs", {verb::get},
                               JSON_ROUTE_CALLBACK(get_trading_pairs_handler));
-  m_endpointApis.add_endpoint("/account_monitoring_task", {verb::post},
-                              JSON_ROUTE_CALLBACK(monitor_user_account));
-  m_endpointApis.add_endpoint("/price_task_status", {verb::get},
-                              JSON_ROUTE_CALLBACK(get_prices_task_status));
-  m_endpointApis.add_endpoint("/stop_price_task", {verb::post},
-                              JSON_ROUTE_CALLBACK(stop_prices_task));
+  m_endpointApis.add_endpoint("/latest_price", {verb::get},
+                              JSON_ROUTE_CALLBACK(latest_price_handler));
   return shared_from_this();
 }
 
@@ -160,9 +165,8 @@ void session_t::handle_requests(string_request_t const &request) {
     auto const iter_end = iter.value()->second.verbs.cend();
     auto const found_iter =
         std::find(iter.value()->second.verbs.cbegin(), iter_end, method);
-    if (found_iter == iter_end) {
+    if (found_iter == iter_end)
       return error_handler(method_not_allowed(request));
-    }
     boost::string_view const query_string = split.size() > 1 ? split[1] : "";
     auto url_query_{split_optional_queries(query_string)};
     return iter.value()->second.routeCallback(request, url_query_);
@@ -236,8 +240,7 @@ void session_t::get_trading_pairs_handler(string_request_t const &request,
   if (exchange_e::total == exchange)
     return error_handler(bad_request("invalid exchange specified", request));
 
-  auto const names =
-      instrument_sink_t::get_unique_instruments(exchange).to_list();
+  auto const names = uniqueInstruments[exchange].to_list();
   return send_response(json_success(names, request));
 }
 
@@ -251,15 +254,45 @@ void session_t::get_prices_task_status(string_request_t const &request,
   return send_response(json_success(task_list, request));
 }
 
+void session_t::latest_price_handler(string_request_t const &request,
+                                     url_query_t const &optional_query) {
+  auto const symbol_iter = optional_query.find("symbol");
+  auto const exchange_iter = optional_query.find("exchange");
+  auto const trade_iter = optional_query.find("trade");
+  if (utils::anyElementIsInvalid(optional_query, symbol_iter, exchange_iter,
+                                 trade_iter)) {
+    return error_handler(
+        bad_request("query symbol/exchange/trade missing", request));
+  }
+
+  auto const exchange = utils::stringToExchange(
+      utils::toLowerCopy(exchange_iter->second.to_string()));
+  instrument_type_t instr;
+  instr.name =
+      utils::trimCopy(utils::toUpperCopy(symbol_iter->second.to_string()));
+  instr.tradeType = utils::stringToTradeType(
+      utils::toLowerCopy(trade_iter->second.to_string()));
+
+  if (instr.name.empty() || exchange == exchange_e::total ||
+      instr.tradeType == trade_type_e::total) {
+    return error_handler(bad_request("malformed query", request));
+  }
+
+  auto &tokens = uniqueInstruments[exchange];
+  auto result = tokens.find_item(instr);
+  if (result.has_value())
+    return send_response(json_success(*result, request));
+  return send_response(json_success("not found", request));
+}
+
 void session_t::stop_prices_task(string_request_t const &request,
                                  url_query_t const &) {
   try {
     auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
     auto const taskListIter = jsonRoot.find("task_list");
     auto const userIDIter = jsonRoot.find("user_id");
-    if (utils::anyElementIsInvalid(jsonRoot, taskListIter, userIDIter)) {
+    if (utils::anyElementIsInvalid(jsonRoot, taskListIter, userIDIter))
       throw std::runtime_error("key data needed to schedule task is missing");
-    }
 
     auto const userID = userIDIter->second.get<json::string_t>();
     auto const taskList = taskListIter->second.get<json::array_t>();
@@ -344,11 +377,13 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
                                       url_query_t const &) {
   try {
     auto const json_root = json::parse(request.body()).get<json::object_t>();
-    std::string request_id{};
-    if (auto const request_id_iter = json_root.find("id");
-        json_root.end() != request_id_iter) {
-      request_id = request_id_iter->second.get<json::string_t>();
-    }
+    auto const request_id_iter = json_root.find("task_id");
+    auto const user_id_iter = json_root.find("task_id");
+    if (utils::anyElementIsInvalid(json_root, request_id_iter, user_id_iter))
+      return error_handler(bad_request("request/user ID missing", request));
+
+    auto const request_id = request_id_iter->second.get<json::string_t>();
+    auto const user_id = user_id_iter->second.get<json::string_t>();
 
     auto const json_job_list = json_root.at("contracts").get<json::array_t>();
     size_t const job_size = json_job_list.size();
@@ -366,6 +401,8 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
             boost::to_upper_copy(symbol.get<json::string_t>()));
       }
 
+      new_task.user_id = user_id;
+      new_task.task_id = request_id;
       new_task.tradeType = utils::stringToTradeType(
           json_object.at("trade").get<json::string_t>());
       new_task.exchange = utils::stringToExchange(
@@ -381,8 +418,12 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
         auto durationIter = json_object.find("duration");
         if (durationIter == json_object.end())
           return error_handler(bad_request("duration not specified", request));
-        auto const interval =
-            intervalIter->second.get<json::number_integer_t>();
+
+        json::number_integer_t interval = 0;
+        if (intervalIter->second.is_number())
+          interval = intervalIter->second.get<json::number_integer_t>();
+        else
+          interval = std::stoi(intervalIter->second.get<json::string_t>());
         auto const duration = durationIter->second.get<json::string_t>();
         new_task.timeProp->duration = utils::stringToDurationUnit(duration);
 

@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "file_utils.hpp"
+#include "price_stream/commodity.hpp"
 #include "server.hpp"
 
 namespace net = boost::asio;
@@ -15,7 +16,8 @@ void account_stream_scheduled_task_writer(bool &isRunning);
 void price_result_list_watcher(bool &isRunning);
 } // namespace keep_my_journal
 
-std::string BEARER_TOKEN_SECRET_KEY;
+using keep_my_journal::instrument_exchange_set_t;
+instrument_exchange_set_t uniqueInstruments{};
 
 int main(int argc, char *argv[]) {
   CLI::App cli_parser{
@@ -28,11 +30,6 @@ int main(int argc, char *argv[]) {
   CLI11_PARSE(cli_parser, argc, argv)
 
   auto &ioContext = keep_my_journal::get_io_context();
-  auto server_instance =
-      std::make_shared<keep_my_journal::server_t>(ioContext, std::move(args));
-  if (!server_instance->run())
-    return EXIT_FAILURE;
-
   boost::asio::ssl::context sslContext(
       boost::asio::ssl::context::tlsv12_client);
   sslContext.set_default_verify_paths();
@@ -60,6 +57,11 @@ int main(int argc, char *argv[]) {
       // defined in scheduled_price_tasks.cpp
       keep_my_journal::price_result_list_watcher(isRunning);
     }}.detach();
+
+    auto server_instance =
+        std::make_shared<keep_my_journal::server_t>(ioContext, std::move(args));
+    if (!server_instance->run())
+      return EXIT_FAILURE;
   }
 
   net::signal_set signalSet(ioContext, SIGTERM);

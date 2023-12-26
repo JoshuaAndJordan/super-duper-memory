@@ -14,8 +14,9 @@ std::string BEARER_TOKEN_SECRET_KEY;
 std::string BOT_SECRET_KEY;
 
 int main(int argc, char *argv[]) {
-  CLI::App cli_parser{"an asynchronous web server for monitoring crypto price_stream "
-                      "and user information"};
+  CLI::App cli_parser{
+      "an asynchronous web server for monitoring crypto price_stream "
+      "and user information"};
   jordan::command_line_interface_t args{};
 
   cli_parser.add_option("-p", args.port, "port to bind server to");

@@ -9,7 +9,9 @@
 namespace keep_my_journal {
 inline std::string
 task_result_to_string(scheduled_price_task_result_t const &res) {
-  return json(res).dump();
+  auto str = json(res).dump();
+  spdlog::info("Data obtained: {}", str);
+  return str;
 }
 
 void http_send_result(net::io_context &ioContext,

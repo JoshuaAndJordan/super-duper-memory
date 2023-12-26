@@ -21,11 +21,12 @@ bool validate_address_paradigm(char const *address);
 }
 
 class binance_stream_t;
-class kucoin_ua_stream_t;
+class kucoin_user_account_stream_t;
 class okex_stream_t;
 
 using binance_stream_list_t = std::vector<std::shared_ptr<binance_stream_t>>;
-using kucoin_stream_list_t = std::vector<std::shared_ptr<kucoin_ua_stream_t>>;
+using kucoin_stream_list_t =
+    std::vector<std::shared_ptr<kucoin_user_account_stream_t>>;
 using okex_stream_list_t = std::vector<std::shared_ptr<okex_stream_t>>;
 
 utils::waitable_container_t<account_monitor_task_result_t> monitorStatusResults;

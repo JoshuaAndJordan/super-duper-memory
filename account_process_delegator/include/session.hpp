@@ -110,6 +110,7 @@ private:
   void get_trading_pairs_handler(string_request_t const &request,
                                  url_query_t const &optional_query);
   void add_new_pricing_tasks(string_request_t const &, url_query_t const &);
+  void latest_price_handler(string_request_t const &, url_query_t const &);
   void monitor_user_account(string_request_t const &, url_query_t const &);
   void get_prices_task_status(string_request_t const &, url_query_t const &);
   void stop_prices_task(string_request_t const &, url_query_t const &);

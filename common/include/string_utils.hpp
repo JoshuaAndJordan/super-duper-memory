@@ -17,6 +17,10 @@ bool anyElementIsInvalid(Container const &container, IterList &&...iter_list) {
 
 void trimString(std::string &);
 std::string trimCopy(std::string const &s);
+std::string toLowerCopy(std::string const &str);
+std::string toUpperCopy(std::string const &str);
+void toLowerString(std::string &str);
+void toUpperString(std::string &str);
 bool unixTimeToString(std::string &, std::size_t,
                       char const * = "%Y-%m-%d %H:%M:%S");
 bool isValidMobileNumber(std::string_view, std::string &);
@@ -54,7 +58,7 @@ std::string stringListToString(std::vector<DataType> const &vec) {
   return stream.str();
 }
 
-template<typename ScheduledTask>
+template <typename ScheduledTask>
 std::string extractTasksIDsToString(std::vector<ScheduledTask> const &tasks) {
   std::ostringstream ss;
   for (size_t index = 0; index < tasks.size() - 1; ++index)

@@ -8,6 +8,9 @@
 
 #include "macro_defines.hpp"
 
+using keep_my_journal::instrument_exchange_set_t;
+extern instrument_exchange_set_t uniqueInstruments;
+
 namespace keep_my_journal {
 namespace utils {
 std::string exchangesToString(exchange_e);
@@ -15,13 +18,11 @@ std::string tradeTypeToString(trade_type_e tradeType);
 bool validate_address_paradigm(char const *address);
 } // namespace utils
 
-void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
-                           exchange_e const exchange) {
+template <exchange_e exchange>
+void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning) {
   auto const filename = utils::exchangesToString(exchange);
   auto const address =
       fmt::format("ipc://{}/{}", PRICE_MONITOR_STREAM_DEPOSIT_PATH, filename);
-
-  spdlog::info("In {}, and the address to use is {}", __func__, address);
 
   zmq::socket_t receivingSocket{msgContext, zmq::socket_type::sub};
   receivingSocket.set(zmq::sockopt::subscribe, "");
@@ -32,7 +33,7 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
     return spdlog::error("Error connecting to {}: {}", address, e.what());
   }
 
-  auto &instruments = instrument_sink_t::get_unique_instruments(exchange);
+  auto &instruments = uniqueInstruments[exchange];
   while (isRunning) {
     zmq::message_t message;
 
@@ -46,16 +47,15 @@ void exchangesPriceWatcher(zmq::context_t &msgContext, bool &isRunning,
     auto const view = message.to_string_view();
     auto const unpackedMsg = msgpack::unpack(view.data(), view.size());
     auto const object = unpackedMsg.get();
+    instrument_type_t instrument{};
 
-    instrument_type_t instrument;
     try {
       object.convert(instrument);
     } catch (msgpack::type_error const &e) {
       spdlog::error(e.what());
       continue;
     }
-
-    instruments.insert(std::move(instrument));
+    instruments.insert(instrument);
   }
 
   spdlog::info("Closing socket for {}", filename);
@@ -69,16 +69,17 @@ void monitor_tokens_latest_prices(bool &isRunning) {
     return;
 
   std::thread binancePrices{[&msgContext, &isRunning] {
-    exchangesPriceWatcher(msgContext, isRunning, exchange_e::binance);
+    exchangesPriceWatcher<exchange_e::binance>(msgContext, isRunning);
   }};
 
   std::thread kucoinPrices{[&msgContext, &isRunning] {
-    exchangesPriceWatcher(msgContext, isRunning, exchange_e::kucoin);
+    exchangesPriceWatcher<exchange_e::kucoin>(msgContext, isRunning);
   }};
 
   std::thread okexPrices{[&msgContext, &isRunning] {
-    exchangesPriceWatcher(msgContext, isRunning, exchange_e::okex);
+    exchangesPriceWatcher<exchange_e::okex>(msgContext, isRunning);
   }};
+
   binancePrices.join();
   kucoinPrices.join();
   okexPrices.join();

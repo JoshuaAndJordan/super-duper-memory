@@ -7,22 +7,21 @@
 
 namespace keep_my_journal {
 
-kucoin_ua_stream_t::kucoin_ua_stream_t(net::io_context &ioContext,
-                                       ssl::context &sslContext,
-                                       account_info_t const &info,
-                                       trade_type_e const tradeType)
+kucoin_user_account_stream_t::kucoin_user_account_stream_t(
+    net::io_context &ioContext, ssl::context &sslContext,
+    account_info_t const &info, trade_type_e const tradeType)
     : m_ioContext(ioContext), m_sslContext(sslContext), m_accountInfo(info),
       m_tradeType(tradeType) {}
 
-void kucoin_ua_stream_t::run() {
+void kucoin_user_account_stream_t::run() {
   m_apiHost = rest_api_host();
   m_apiService = rest_api_service();
   rest_api_obtain_token();
 }
 
-void kucoin_ua_stream_t::stop() {}
+void kucoin_user_account_stream_t::stop() {}
 
-void kucoin_ua_stream_t::rest_api_obtain_token() {
+void kucoin_user_account_stream_t::rest_api_obtain_token() {
   m_resolver.emplace(m_ioContext);
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
 
@@ -53,7 +52,7 @@ void kucoin_ua_stream_t::rest_api_obtain_token() {
   m_httpClient->run();
 }
 
-void kucoin_ua_stream_t::on_token_obtained(std::string const &str) {
+void kucoin_user_account_stream_t::on_token_obtained(std::string const &str) {
   try {
     auto const rootObject = json::parse(str).get<json::object_t>();
     auto const codeIter = rootObject.find("code");
@@ -86,9 +85,6 @@ void kucoin_ua_stream_t::on_token_obtained(std::string const &str) {
             (int)instanceObject.find("encrypt")->second.get<json::boolean_t>();
         data.pingIntervalMs = (int)instanceObject.find("pingInterval")
                                   ->second.get<json::number_integer_t>();
-
-        data.pingTimeoutMs = (int)instanceObject.find("pingTimeout")
-                                 ->second.get<json::number_integer_t>();
         m_instanceServers.push_back(std::move(data));
       }
     }
@@ -97,7 +93,7 @@ void kucoin_ua_stream_t::on_token_obtained(std::string const &str) {
   }
 }
 
-void kucoin_ua_stream_t::initiate_websocket_connection() {
+void kucoin_user_account_stream_t::initiate_websocket_connection() {
   if (m_instanceServers.empty() || m_requestToken.empty()) {
     return spdlog::error("ws instanceServers(size): {}, requestToken: {}",
                          m_instanceServers.size(), m_requestToken);
@@ -127,7 +123,7 @@ void kucoin_ua_stream_t::initiate_websocket_connection() {
       });
 }
 
-void kucoin_ua_stream_t::websocket_connect_to_resolved_names(
+void kucoin_user_account_stream_t::websocket_connect_to_resolved_names(
     resolver::results_type const &resolvedNames) {
   m_resolver.reset();
   m_sslWebStream.emplace(m_ioContext, m_sslContext);
@@ -145,7 +141,7 @@ void kucoin_ua_stream_t::websocket_connect_to_resolved_names(
                      });
 }
 
-void kucoin_ua_stream_t::websocket_perform_ssl_handshake() {
+void kucoin_user_account_stream_t::websocket_perform_ssl_handshake() {
   auto const host = m_uri.host();
   beast::get_lowest_layer(*m_sslWebStream)
       .expires_after(std::chrono::seconds(10));
@@ -159,7 +155,7 @@ void kucoin_ua_stream_t::websocket_perform_ssl_handshake() {
   negotiate_websocket_connection();
 }
 
-void kucoin_ua_stream_t::negotiate_websocket_connection() {
+void kucoin_user_account_stream_t::negotiate_websocket_connection() {
   m_sslWebStream->next_layer().async_handshake(
       ssl::stream_base::client,
       [self = shared_from_this()](beast::error_code const &ec) {
@@ -173,7 +169,7 @@ void kucoin_ua_stream_t::negotiate_websocket_connection() {
       });
 }
 
-void kucoin_ua_stream_t::perform_websocket_handshake() {
+void kucoin_user_account_stream_t::perform_websocket_handshake() {
   auto const path = m_uri.path() + "?token=" + m_requestToken +
                     "&connectId=" + utils::getRandomString(10);
   m_sslWebStream->async_handshake(
@@ -185,7 +181,7 @@ void kucoin_ua_stream_t::perform_websocket_handshake() {
       });
 }
 
-void kucoin_ua_stream_t::reset_ping_timer() {
+void kucoin_user_account_stream_t::reset_ping_timer() {
   if (m_pingTimer) {
     boost::system::error_code ec{};
     m_pingTimer->cancel(ec);
@@ -193,7 +189,7 @@ void kucoin_ua_stream_t::reset_ping_timer() {
   }
 }
 
-void kucoin_ua_stream_t::on_ping_timer_tick(
+void kucoin_user_account_stream_t::on_ping_timer_tick(
     boost::system::error_code const &ec) {
   if (ec)
     return spdlog::error(ec.message());
@@ -211,7 +207,7 @@ void kucoin_ua_stream_t::on_ping_timer_tick(
   });
 }
 
-void kucoin_ua_stream_t::start_ping_timer() {
+void kucoin_user_account_stream_t::start_ping_timer() {
   reset_ping_timer();
   m_pingTimer.emplace(m_ioContext);
 
@@ -224,7 +220,7 @@ void kucoin_ua_stream_t::start_ping_timer() {
       });
 }
 
-void kucoin_ua_stream_t::wait_for_messages() {
+void kucoin_user_account_stream_t::wait_for_messages() {
   m_readWriteBuffer.emplace();
   m_sslWebStream->async_read(
       *m_readWriteBuffer,
@@ -238,7 +234,7 @@ void kucoin_ua_stream_t::wait_for_messages() {
       });
 }
 
-void kucoin_ua_stream_t::interpret_generic_messages() {
+void kucoin_user_account_stream_t::interpret_generic_messages() {
   char const *const bufferCstr =
       static_cast<char const *>(m_readWriteBuffer->cdata().data());
   size_t const dataLength = m_readWriteBuffer->size();
@@ -250,7 +246,7 @@ void kucoin_ua_stream_t::interpret_generic_messages() {
   return wait_for_messages();
 }
 
-void kucoin_ua_stream_t::send_next_subscription() {
+void kucoin_user_account_stream_t::send_next_subscription() {
   if (m_stage == subscription_stage_e::none) {
     m_subscriptionString = get_private_order_change_json();
     m_stage = subscription_stage_e::private_order_change_v2;
@@ -276,7 +272,8 @@ void kucoin_ua_stream_t::send_next_subscription() {
       });
 }
 
-void kucoin_ua_stream_t::report_error_and_retry(beast::error_code const ec) {
+void kucoin_user_account_stream_t::report_error_and_retry(
+    beast::error_code const ec) {
   spdlog::error(ec.message());
   reset_ping_timer();
   reset_counter();
@@ -301,7 +298,8 @@ std::string get_private_subscription_object(std::string const &topic) {
 kucoin_spot_ua_stream_t::kucoin_spot_ua_stream_t(net::io_context &ioContext,
                                                  ssl::context &sslContext,
                                                  account_info_t const &userInfo)
-    : kucoin_ua_stream_t(ioContext, sslContext, userInfo, trade_type_e::spot) {}
+    : kucoin_user_account_stream_t(ioContext, sslContext, userInfo,
+                                   trade_type_e::spot) {}
 
 std::string kucoin_spot_ua_stream_t::get_private_order_change_json() {
   static char const *const topic = "/spotMarket/tradeOrdersV2";
@@ -322,8 +320,8 @@ std::string kucoin_spot_ua_stream_t::get_stop_order_event_json() {
 kucoin_futures_ua_stream_t::kucoin_futures_ua_stream_t(
     net::io_context &ioContext, ssl::context &sslContext,
     account_info_t const &userInfo)
-    : kucoin_ua_stream_t(ioContext, sslContext, userInfo,
-                         trade_type_e::futures) {}
+    : kucoin_user_account_stream_t(ioContext, sslContext, userInfo,
+                                   trade_type_e::futures) {}
 
 std::string kucoin_futures_ua_stream_t::get_private_order_change_json() {
   static char const *const topic = "/contractMarket/tradeOrders";
@@ -341,10 +339,10 @@ std::string kucoin_futures_ua_stream_t::get_stop_order_event_json() {
 }
 
 void addKucoinAccountStream(
-    std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
+    std::vector<std::shared_ptr<kucoin_user_account_stream_t>> &list,
     account_info_t const &task, trade_type_e const tradeType,
     net::io_context &ioContext, net::ssl::context &sslContext) {
-  std::shared_ptr<kucoin_ua_stream_t> stream = nullptr;
+  std::shared_ptr<kucoin_user_account_stream_t> stream = nullptr;
   if (tradeType == trade_type_e::spot) {
     stream =
         std::make_shared<kucoin_spot_ua_stream_t>(ioContext, sslContext, task);
@@ -360,12 +358,13 @@ void addKucoinAccountStream(
 }
 
 void removeKucoinAccountStream(
-    std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
+    std::vector<std::shared_ptr<kucoin_user_account_stream_t>> &list,
     account_info_t const &info) {
-  auto iter = std::find_if(list.begin(), list.end(),
-                           [&info](std::shared_ptr<kucoin_ua_stream_t> &s) {
-                             return s->m_accountInfo == info;
-                           });
+  auto iter =
+      std::find_if(list.begin(), list.end(),
+                   [&info](std::shared_ptr<kucoin_user_account_stream_t> &s) {
+                     return s->m_accountInfo == info;
+                   });
   spdlog::info("Removing Kucoin account stream to list...");
   if (iter != list.end()) {
     (*iter)->stop();

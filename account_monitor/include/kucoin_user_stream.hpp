@@ -32,12 +32,11 @@ namespace ip = net::ip;
 class https_rest_api_t;
 
 // kucoin user stream websocket
-class kucoin_ua_stream_t
-    : public std::enable_shared_from_this<kucoin_ua_stream_t> {
+class kucoin_user_account_stream_t
+    : public std::enable_shared_from_this<kucoin_user_account_stream_t> {
   struct instance_server_data_t {
     std::string endpoint; // wss://foo.com/path
     int pingIntervalMs = 0;
-    [[maybe_unused]] int pingTimeoutMs = 0;
     int encryptProtocol = 0; // bool encrypt or not
   };
 
@@ -71,9 +70,10 @@ class kucoin_ua_stream_t
   subscription_stage_e m_stage = subscription_stage_e::none;
 
 public:
-  kucoin_ua_stream_t(net::io_context &ioContext, ssl::context &sslContext,
-                     account_info_t const &info, trade_type_e const);
-  virtual ~kucoin_ua_stream_t() = default;
+  kucoin_user_account_stream_t(net::io_context &ioContext,
+                               ssl::context &sslContext,
+                               account_info_t const &info, trade_type_e const);
+  virtual ~kucoin_user_account_stream_t() = default;
   void run();
   void stop();
 
@@ -86,7 +86,7 @@ protected:
   virtual std::string get_stop_order_event_json() = 0;
 
   friend void removeKucoinAccountStream(
-      std::vector<std::shared_ptr<kucoin_ua_stream_t>> &list,
+      std::vector<std::shared_ptr<kucoin_user_account_stream_t>> &list,
       account_info_t const &info);
 
 private:
@@ -106,7 +106,7 @@ private:
   void on_token_obtained(std::string const &token);
 };
 
-class kucoin_futures_ua_stream_t : public kucoin_ua_stream_t {
+class kucoin_futures_ua_stream_t : public kucoin_user_account_stream_t {
 public:
   kucoin_futures_ua_stream_t(net::io_context &, ssl::context &,
                              account_info_t const &);
@@ -119,7 +119,7 @@ public:
   std::string get_stop_order_event_json() override;
 };
 
-class kucoin_spot_ua_stream_t : public kucoin_ua_stream_t {
+class kucoin_spot_ua_stream_t : public kucoin_user_account_stream_t {
 public:
   kucoin_spot_ua_stream_t(net::io_context &, ssl::context &,
                           account_info_t const &);

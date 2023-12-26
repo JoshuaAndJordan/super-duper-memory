@@ -11,6 +11,8 @@
 #include <spdlog/spdlog.h>
 
 namespace net = boost::asio;
+using keep_my_journal::instrument_exchange_set_t;
+extern instrument_exchange_set_t uniqueInstruments;
 
 namespace keep_my_journal {
 struct scheduled_price_task_comparator_t {
@@ -28,7 +30,7 @@ std::map<scheduled_price_task_t, std::shared_ptr<price_task_t>,
 class time_based_watch_price_t::time_based_watch_price_impl_t
     : public std::enable_shared_from_this<time_based_watch_price_impl_t> {
   net::io_context &m_ioContext;
-  utils::locked_set_t<instrument_type_t> &m_instruments;
+  utils::unique_elements_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
   std::optional<net::deadline_timer> m_timer = std::nullopt;
 
@@ -46,8 +48,7 @@ class time_based_watch_price_t::time_based_watch_price_impl_t
 public:
   time_based_watch_price_impl_t(net::io_context &ioContext,
                                 scheduled_price_task_t const &task)
-      : m_ioContext(ioContext),
-        m_instruments(instrument_sink_t::get_unique_instruments(task.exchange)),
+      : m_ioContext(ioContext), m_instruments(uniqueInstruments[task.exchange]),
         m_task(task) {}
 
   ~time_based_watch_price_impl_t() { stop(); }
@@ -75,6 +76,8 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::fetch_prices() {
 
   if (!result.result.empty()) {
     result.task = m_task;
+    for (auto const &res : result.result)
+      spdlog::info("Name: {}, Price: {}", res.name, res.currentPrice);
     send_price_task_result(result);
   }
 
@@ -117,7 +120,7 @@ void time_based_watch_price_t::stop() {
 class progress_based_watch_price_t::progress_based_watch_price_impl_t
     : public std::enable_shared_from_this<progress_based_watch_price_impl_t> {
   net::io_context &m_ioContext;
-  utils::locked_set_t<instrument_type_t> &m_instruments;
+  utils::unique_elements_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
   std::vector<instrument_type_t> m_snapshots;
   std::optional<net::deadline_timer> m_periodicTimer = std::nullopt;
@@ -126,8 +129,7 @@ class progress_based_watch_price_t::progress_based_watch_price_impl_t
 public:
   progress_based_watch_price_impl_t(net::io_context &ioContext,
                                     scheduled_price_task_t const &task)
-      : m_ioContext(ioContext),
-        m_instruments(instrument_sink_t::get_unique_instruments(task.exchange)),
+      : m_ioContext(ioContext), m_instruments(uniqueInstruments[task.exchange]),
         m_task(task) {
     auto const snapshot = m_instruments.to_list();
     m_snapshots.reserve(task.tokens.size());
@@ -151,7 +153,7 @@ public:
       }
     }
 
-    m_isLesserThanZero = percentage < 0.0;
+    m_isLesserThanZero = (percentage < 0.0);
     assert(m_snapshots.size() == task.tokens.size());
   }
 
@@ -282,7 +284,8 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
     return false;
   }
 
-  if (priceTask) {
+  bool const initiated = priceTask != nullptr;
+  if (initiated) {
     priceTask->run();
     queue.insert(priceTask);
 
@@ -290,7 +293,7 @@ bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
     global_price_tasks[taskInfo] = priceTask;
   }
 
-  return priceTask != nullptr;
+  return initiated;
 }
 
 void send_price_task_result(scheduled_price_task_result_t const &result) {

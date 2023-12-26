@@ -54,7 +54,7 @@ public:
 class global_price_task_sink_t {
   friend bool schedule_new_price_task(scheduled_price_task_t);
   static auto &get_all_scheduled_tasks() {
-    static utils::locked_set_t<std::shared_ptr<price_task_t>> tasks;
+    static utils::unique_elements_t<std::shared_ptr<price_task_t>> tasks;
     return tasks;
   }
 };

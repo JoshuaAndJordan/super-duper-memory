@@ -141,11 +141,28 @@ std::string_view boostViewToStdStringView(boost::string_view view) {
   return {view.data(), view.size()};
 }
 
-std::string toLowerString(std::string const &str) {
+std::string toLowerCopy(std::string const &str) {
   std::string result;
-  std::transform(str.cbegin(), str.cend(), result.begin(),
+  std::transform(str.cbegin(), str.cend(), std::back_inserter(result),
                  [](char const ch) { return std::tolower(ch); });
   return result;
+}
+
+std::string toUpperCopy(std::string const &str) {
+  std::string result;
+  std::transform(str.cbegin(), str.cend(), std::back_inserter(result),
+                 [](char const ch) { return std::toupper(ch); });
+  return result;
+}
+
+void toLowerString(std::string &str) {
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](char const ch) { return std::tolower(ch); });
+}
+
+void toUpperString(std::string &str) {
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](char const ch) { return std::toupper(ch); });
 }
 
 std::string integerListToString(std::vector<uint32_t> const &vec) {
@@ -251,7 +268,7 @@ price_direction_e stringToPriceDirection(std::string const &str) {
 }
 
 duration_unit_e stringToDurationUnit(std::string const &str) {
-  std::string const durationStr = toLowerString(str);
+  std::string const durationStr = toLowerCopy(str);
   if (durationStr == "minutes" || durationStr == "minute")
     return duration_unit_e::minutes;
   else if (durationStr == "seconds" || durationStr == "second")

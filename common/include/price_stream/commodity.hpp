@@ -8,6 +8,7 @@
 #include <msgpack.hpp>
 #endif
 
+#include <boost/functional/hash.hpp>
 #include <map>
 #include <string>
 
@@ -18,28 +19,22 @@ struct instrument_type_t {
   double open24h = 0.0;
   trade_type_e tradeType;
 
-  friend bool operator<(instrument_type_t const &instA,
-                        instrument_type_t const &instB) {
-    return std::tie(instA.name, instA.tradeType) <
-           std::tie(instB.name, instB.tradeType);
-  }
-
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(name, currentPrice, open24h, tradeType);
 #endif
 };
 
-struct instrument_sink_t {
-  using list_t = utils::waitable_container_t<instrument_type_t>;
-  static auto &get_all_listed_instruments(exchange_e const e) {
-    static std::map<exchange_e, list_t> instrumentsSink;
-    return instrumentsSink[e];
-  }
+using instrument_list_t = utils::waitable_container_t<instrument_type_t>;
+using instrument_set_t = utils::unique_elements_t<instrument_type_t>;
+using instrument_exchange_set_t =
+    utils::locked_map_t<keep_my_journal::exchange_e,
+                        keep_my_journal::instrument_set_t>;
 
-  static auto &get_unique_instruments(exchange_e const e) {
-    static std::map<exchange_e, utils::locked_set_t<instrument_type_t>>
-        instruments;
-    return instruments[e];
+struct instrument_sink_t {
+  using list_t = keep_my_journal::instrument_list_t;
+  static list_t &get_all_listed_instruments(exchange_e const e) {
+    static std::map<exchange_e, list_t> instrumentsSink{};
+    return instrumentsSink[e];
   }
 };
 
@@ -47,16 +42,35 @@ struct instrument_sink_t {
 
 namespace std {
 template <> struct hash<keep_my_journal::instrument_type_t> {
-  std::size_t
-  operator()(keep_my_journal::instrument_type_t const &inst) const noexcept {
-    return std::hash<std::string>{}(inst.name);
+  using argument_type = keep_my_journal::instrument_type_t;
+  using result_type = std::size_t;
+
+  result_type operator()(argument_type const &instrument) const {
+    std::size_t val{};
+    boost::hash_combine(val, instrument.name);
+    boost::hash_combine(val, instrument.tradeType);
+    return val;
   }
 };
 
 template <> struct equal_to<keep_my_journal::instrument_type_t> {
-  bool operator()(keep_my_journal::instrument_type_t const &a,
-                  keep_my_journal::instrument_type_t const &b) const noexcept {
-    return std::tie(a.name, a.tradeType) == std::tie(b.name, b.tradeType);
+  using argument_type = keep_my_journal::instrument_type_t;
+
+  bool operator()(argument_type const &instA,
+                  argument_type const &instB) const {
+    return std::tie(instA.name, instA.tradeType) ==
+           std::tie(instB.name, instB.tradeType);
   }
 };
+
+template <> struct less<keep_my_journal::instrument_type_t> {
+  using argument_type = keep_my_journal::instrument_type_t;
+
+  bool operator()(argument_type const &instA,
+                  argument_type const &instB) const {
+    return std::tie(instA.name, instA.tradeType) <
+           std::tie(instB.name, instB.tradeType);
+  }
+};
+
 } // namespace std

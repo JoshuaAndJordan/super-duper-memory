@@ -8,11 +8,11 @@
 namespace jordan {
 
 struct user_exchange_info_t {
-  uint64_t    userID = 0;
+  uint64_t userID = 0;
   std::string apiKey{};
   std::string secretKey{};
   std::string passphrase{};
-  exchange_e  exchange;
+  exchange_e exchange;
 };
 
 struct channel_info_t {
