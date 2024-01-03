@@ -21,9 +21,10 @@ std::deque<account_monitor_task_result_t> monitoredTaskResults{};
 std::optional<account_monitor_task_result_t>
 queue_account_stream_tasks(account_scheduled_task_t const &task) {
   static auto const max_time_limit = std::chrono::seconds(20);
+  static auto const hundred_ms = std::chrono::milliseconds(100);
   taskMonitorQueue.append(task);
 
-  auto iter = monitoredTaskResults.end();
+  std::deque<account_monitor_task_result_t>::iterator iter;
   std::chrono::milliseconds now{0};
 
   do {
@@ -34,8 +35,8 @@ queue_account_stream_tasks(account_scheduled_task_t const &task) {
         });
     if (iter != monitoredTaskResults.end())
       break;
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    now += std::chrono::milliseconds(100);
+    std::this_thread::sleep_for(hundred_ms);
+    now += hundred_ms;
   } while (iter == monitoredTaskResults.end() && (now < max_time_limit));
 
   if (iter != monitoredTaskResults.end()) {
@@ -46,24 +47,19 @@ queue_account_stream_tasks(account_scheduled_task_t const &task) {
   return std::nullopt;
 }
 
-void write_scheduled_task_to_stream(zmq::context_t &msgContext,
-                                    msgpack::sbuffer &buffer,
-                                    account_scheduled_task_t const &task) {
-  auto const address =
-      fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
-                  utils::exchangesToString(task.exchange));
-  zmq::socket_t sendingSocket(msgContext, zmq::socket_type::pub);
-  sendingSocket.bind(address);
+void write_scheduled_task_to_stream(
+    std::shared_ptr<zmq::socket_t> &sendingSocket, msgpack::sbuffer &buffer,
+    account_scheduled_task_t const &task) {
 
   msgpack::pack(buffer, task);
   std::string_view const v(buffer.data(), buffer.size());
 
   zmq::message_t message(v);
-  auto const optSize = sendingSocket.send(message, zmq::send_flags::none);
-  if (!optSize.has_value())
-    throw std::runtime_error("unable to send message on address " + address);
-  sendingSocket.unbind(address);
-  sendingSocket.close();
+  auto const optSize = sendingSocket->send(message, zmq::send_flags::none);
+  if (!optSize.has_value()) {
+    throw std::runtime_error("unable to send message on address " +
+                             utils::exchangesToString(task.exchange));
+  }
 }
 
 void monitor_scheduled_tasks_result(bool &isRunning,
@@ -109,16 +105,35 @@ void account_stream_scheduled_task_writer(bool &isRunning) {
     monitor_scheduled_tasks_result(isRunning, msgContext);
   }};
 
+  std::map<exchange_e, std::shared_ptr<zmq::socket_t>> sockets;
+  for (auto const exchange :
+       {exchange_e::binance, exchange_e::kucoin, exchange_e::okex}) {
+    auto const address =
+        fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
+                    utils::exchangesToString(exchange));
+    spdlog::info("Address -> {}", address);
+    auto socket =
+        std::make_shared<zmq::socket_t>(msgContext, zmq::socket_type::pub);
+    socket->bind(address);
+    sockets[exchange] = socket;
+  }
+
   while (isRunning) {
     auto task = taskMonitorQueue.get();
 
     try {
-      write_scheduled_task_to_stream(msgContext, buffer, task);
+      write_scheduled_task_to_stream(sockets[task.exchange], buffer, task);
     } catch (std::exception const &e) {
       spdlog::error(e.what());
     }
 
     buffer.clear();
+  }
+
+  for (auto &[_, socket] : sockets) {
+    // socket.unbind(address);
+    socket->close();
+    socket.reset();
   }
 }
 } // namespace keep_my_journal

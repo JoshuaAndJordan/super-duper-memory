@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 
 #Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
-set(PROJECT_NAME account_process_delegator)
+set(PROJECT_NAME process_delegator)
 
 ## load in pkg-config support
 find_package(PkgConfig)

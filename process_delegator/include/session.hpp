@@ -114,10 +114,9 @@ private:
   void monitor_user_account(string_request_t const &, url_query_t const &);
   void get_prices_task_status(string_request_t const &, url_query_t const &);
   void stop_prices_task(string_request_t const &, url_query_t const &);
+  void get_all_running_price_tasks(string_request_t const &,
+                                   url_query_t const &);
   bool is_json_request() const;
-  void http_write(beast::tcp_stream &, file_serializer_t &,
-                  std::function<void()>);
-
 private:
   static string_response_t json_success(json const &body,
                                         string_request_t const &req);
@@ -139,7 +138,4 @@ public:
   bool is_closed();
   void run();
 };
-
-std::string get_alphanum_tablename(std::string);
-
 } // namespace keep_my_journal

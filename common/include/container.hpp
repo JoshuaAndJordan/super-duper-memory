@@ -12,15 +12,37 @@
 #include <vector>
 
 namespace keep_my_journal::utils {
-template <typename Key, typename Value> struct locked_map_t {
+template <typename Key, typename Value, typename Comparator = std::less<Key>>
+struct locked_map_t {
 private:
-  std::map<Key, Value> m_map{};
+  std::map<Key, Value, Comparator> m_map{};
   std::mutex m_mutex{};
 
 public:
   auto &operator[](Key const &key) {
     std::lock_guard<std::mutex> lockGuard(m_mutex);
     return m_map[key];
+  }
+
+  std::optional<Value> find_value(Key const &key) {
+    std::lock_guard<std::mutex> lockGuard(m_mutex);
+    if (auto iter = m_map.find(key); iter != m_map.end())
+      return iter->second;
+    return std::nullopt;
+  }
+
+  void remove_element(Key const &key) {
+    std::lock_guard<std::mutex> lockGuard(m_mutex);
+    if (auto iter = m_map.find(key); iter != m_map.end())
+      m_map.erase(iter);
+  }
+  template <typename Func> std::vector<Key> get_keys_matching(Func &&func) {
+    std::vector<Key> keys;
+    std::lock_guard<std::mutex> lockGuard(m_mutex);
+    for (auto const &[key, _] : m_map)
+      if (func(key))
+        keys.push_back(key);
+    return keys;
   }
 };
 
@@ -75,7 +97,7 @@ public:
     m_set.clear();
   }
 
-  bool empty() const {
+  bool empty() {
     std::lock_guard<std::mutex> lock_g{m_mutex};
     return m_set.empty();
   }

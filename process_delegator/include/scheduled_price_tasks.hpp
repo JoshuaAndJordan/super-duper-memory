@@ -64,4 +64,5 @@ void stop_scheduled_price_task(scheduled_price_task_t const &taskInfo);
 void send_price_task_result(scheduled_price_task_result_t const &);
 std::vector<scheduled_price_task_t>
 get_price_tasks_for_user(std::string const &userID);
+std::vector<scheduled_price_task_t> get_price_tasks_for_all();
 } // namespace keep_my_journal

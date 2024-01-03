@@ -11,6 +11,7 @@
 #include "account_stream/okex_order_info.hpp"
 #include "account_stream/user_scheduled_task.hpp"
 #include "macro_defines.hpp"
+#include "string_utils.hpp"
 
 namespace net = boost::asio;
 namespace ssl = net::ssl;
@@ -84,6 +85,10 @@ get_scheduled_task(zmq::socket_t &socket) {
 
   account_scheduled_task_t task{};
   object.convert(task);
+
+  spdlog::info("{} -> {} -> {} -> {} -> {} -> {}", task.userID, task.taskID,
+               (int)task.tradeType, (int)task.exchange, task.apiKey,
+               task.secretKey);
   return task;
 }
 
@@ -101,8 +106,11 @@ void binanceAccountMonitor(zmq::context_t &msgContext,
                            bool &isRunning) {
   binance_stream_list_t binanceStreams{};
   zmq::socket_t receiverSocket(msgContext, zmq::socket_type::sub);
+  receiverSocket.set(zmq::sockopt::subscribe, "");
+
   auto const address =
-      fmt::format("ipc://{}/binance", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+      fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
+                  utils::exchangesToString(exchange_e::binance));
   spdlog::info("{} sub {}", __func__, address);
   receiverSocket.connect(address);
 
@@ -119,13 +127,14 @@ void binanceAccountMonitor(zmq::context_t &msgContext,
     account_monitor_task_result_t result{};
     result.taskID = optTask->taskID;
     result.userID = optTask->userID;
-    result.state = task_state_e::running;
 
     if (optTask->operation == task_operation_e::add) {
       addBinanceAccountStream(binanceStreams, accountInfo, ioContext,
                               sslContext);
+      result.state = task_state_e::running;
     } else if (optTask->operation == task_operation_e::remove) {
       removeBinanceAccountStream(binanceStreams, accountInfo);
+      result.state = task_state_e::stopped;
     } else {
       result.state = task_state_e::stopped;
     }
@@ -140,10 +149,12 @@ void kucoinAccountMonitor(zmq::context_t &msgContext,
                           bool &isRunning) {
   kucoin_stream_list_t streams{};
   auto const address =
-      fmt::format("ipc://{}/kucoin", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+      fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
+                  utils::exchangesToString(exchange_e::kucoin));
   spdlog::info("{} sub {}", __func__, address);
 
   zmq::socket_t receiverSocket(msgContext, zmq::socket_type::sub);
+  receiverSocket.set(zmq::sockopt::subscribe, "");
   receiverSocket.connect(address);
 
   while (isRunning) {
@@ -178,9 +189,11 @@ void okexAccountMonitor(zmq::context_t &msgContext, net::io_context &ioContext,
                         ssl::context &sslContext, bool &isRunning) {
   okex_stream_list_t streams{};
   zmq::socket_t receiverSocket(msgContext, zmq::socket_type::sub);
+  receiverSocket.set(zmq::sockopt::subscribe, "");
 
   auto const address =
-      fmt::format("ipc://{}/okex", EXCHANGE_STREAM_TASK_SCHEDULER_PATH);
+      fmt::format("ipc://{}/{}", EXCHANGE_STREAM_TASK_SCHEDULER_PATH,
+                  utils::exchangesToString(exchange_e::okex));
   spdlog::info("{} sub {}", __func__, address);
 
   receiverSocket.connect(address);

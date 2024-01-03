@@ -175,7 +175,7 @@ if (ENABLE_PRICE_MONITOR)
 endif()
 
 if (ENABLE_USER_PROCESS_DELEGATOR)
-  add_subdirectory(account_process_delegator)
+  add_subdirectory(process_delegator)
 endif()
 
 if (ENABLE_MESSAGE_DELEGATOR)

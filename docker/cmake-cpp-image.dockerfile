@@ -9,7 +9,8 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
 
 RUN export DEBIAN_FRONTEND=noninteractive; \
     apt install -y libmsgpackc2 libmsgpack-dev pkg-config libzmq3-dev && \
-    apt install -y unixodbc-dev supervisor nginx && \
+    apt install -y unixodbc-dev supervisor nginx python3 python3-pip && \
+    pip install requests flask black && \
     apt clean
 
 RUN git clone "https://github.com/msgpack/msgpack-c"
@@ -43,7 +44,14 @@ RUN rm -rf cppzmq
 
 RUN mkdir -p run_crypto
 WORKDIR run_crypto
-RUN mkdir -p log log/account_monitor log/price_monitor log/process_delegator log/message_delegator log/nginx
+RUN mkdir -p log log/account_monitor log/price_monitor log/server_message
+RUN mkdir -p log/process_delegator log/message_delegator log/nginx
 
 COPY docker/files/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/files/nginx.conf /etc/nginx/nginx.conf
+COPY docker/files/start.sh /run_crypto/start.sh
+COPY scripts/test_prices.py /test_prices.py
+COPY scripts/test_accounting.py /test_accounting.py
+COPY scripts/server.py /run_crypto/message_server.py
+
+ENTRYPOINT ["/run_crypto/start.sh", "--"]

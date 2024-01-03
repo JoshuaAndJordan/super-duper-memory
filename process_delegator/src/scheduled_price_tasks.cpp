@@ -23,8 +23,8 @@ struct scheduled_price_task_comparator_t {
 };
 
 utils::waitable_container_t<scheduled_price_task_result_t> global_result_list;
-std::map<scheduled_price_task_t, std::shared_ptr<price_task_t>,
-         scheduled_price_task_comparator_t>
+utils::locked_map_t<scheduled_price_task_t, std::shared_ptr<price_task_t>,
+                    scheduled_price_task_comparator_t>
     global_price_tasks;
 
 class time_based_watch_price_t::time_based_watch_price_impl_t
@@ -76,8 +76,6 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::fetch_prices() {
 
   if (!result.result.empty()) {
     result.task = m_task;
-    for (auto const &res : result.result)
-      spdlog::info("Name: {}, Price: {}", res.name, res.currentPrice);
     send_price_task_result(result);
   }
 
@@ -301,22 +299,24 @@ void send_price_task_result(scheduled_price_task_result_t const &result) {
 }
 
 void stop_scheduled_price_task(scheduled_price_task_t const &taskInfo) {
-  auto taskIter = global_price_tasks.find(taskInfo);
-  if (taskIter != global_price_tasks.end()) {
-    taskIter->second->stop();
-    global_price_tasks.erase(taskIter);
+  if (auto result = global_price_tasks.find_value(taskInfo);
+      result.has_value()) {
+    (*result)->stop();
+    global_price_tasks.remove_element(taskInfo);
   }
 }
 
 std::vector<scheduled_price_task_t>
 get_price_tasks_for_user(std::string const &userID) {
-  std::vector<scheduled_price_task_t> taskList;
+  auto callback = [userID](scheduled_price_task_t const &task) {
+    return userID == task.user_id;
+  };
+  return global_price_tasks.get_keys_matching(std::move(callback));
+}
 
-  for (auto const &[task, _] : global_price_tasks) {
-    if (task.user_id == userID)
-      taskList.push_back(task);
-  }
-  return taskList;
+std::vector<scheduled_price_task_t> get_price_tasks_for_all() {
+  auto callback = [](auto const &) { return true; };
+  return global_price_tasks.get_keys_matching(std::move(callback));
 }
 
 void price_result_list_watcher(bool &isRunning) {

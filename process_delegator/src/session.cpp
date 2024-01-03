@@ -57,18 +57,6 @@ std::uint64_t milliseconds_from_string(duration_unit_e const duration,
   return 0;
 }
 
-std::string get_alphanum_tablename(std::string str) {
-  static auto non_alphanum_remover = [](char const ch) {
-    return !std::isalnum(ch);
-  };
-  str.erase(std::remove_if(str.begin(), str.end(), non_alphanum_remover),
-            str.end());
-  return str;
-}
-
-std::filesystem::path const download_path =
-    std::filesystem::current_path() / "downloads" / "zip_files";
-
 void endpoint_t::add_endpoint(std::string const &route,
                               std::initializer_list<http::verb> const &verbs,
                               callback_t &&callback) {
@@ -103,26 +91,15 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
                               JSON_ROUTE_CALLBACK(get_prices_task_status));
   m_endpointApis.add_endpoint("/stop_price_tasks", {verb::post},
                               JSON_ROUTE_CALLBACK(stop_prices_task));
-  m_endpointApis.add_endpoint("/account_monitoring_tasks", {verb::post},
-                              JSON_ROUTE_CALLBACK(monitor_user_account));
+  m_endpointApis.add_endpoint("/all_price_tasks", {verb::get},
+                              JSON_ROUTE_CALLBACK(get_all_running_price_tasks));
   m_endpointApis.add_endpoint("/trading_pairs", {verb::get},
                               JSON_ROUTE_CALLBACK(get_trading_pairs_handler));
   m_endpointApis.add_endpoint("/latest_price", {verb::get},
                               JSON_ROUTE_CALLBACK(latest_price_handler));
+  m_endpointApis.add_endpoint("/add_account_monitoring", {verb::post},
+                              JSON_ROUTE_CALLBACK(monitor_user_account));
   return shared_from_this();
-}
-
-void session_t::http_write(beast::tcp_stream &tcpStream,
-                           file_serializer_t &fileSerializer,
-                           std::function<void()> func) {
-  http::async_write(tcpStream, fileSerializer,
-                    [callback = std::move(func), self = shared_from_this()](
-                        beast::error_code ec, std::size_t const size_written) {
-                      self->m_fileSerializer.reset();
-                      self->m_fileResponse.reset();
-                      callback();
-                      self->on_data_written(ec, size_written);
-                    });
 }
 
 void session_t::run() { http_read_data(); }
@@ -285,6 +262,11 @@ void session_t::latest_price_handler(string_request_t const &request,
   return send_response(json_success("not found", request));
 }
 
+void session_t::get_all_running_price_tasks(string_request_t const &request,
+                                            url_query_t const &) {
+  send_response(json_success(get_price_tasks_for_all(), request));
+}
+
 void session_t::stop_prices_task(string_request_t const &request,
                                  url_query_t const &) {
   try {
@@ -303,7 +285,7 @@ void session_t::stop_prices_task(string_request_t const &request,
       stop_scheduled_price_task(task);
     }
 
-    return send_response(json_success(json::array_t{}, request));
+    return send_response(json_success(taskList, request));
   } catch (std::exception const &e) {
     spdlog::error(e.what());
     return error_handler(bad_request("JSON object is invalid", request));
@@ -316,7 +298,7 @@ void session_t::monitor_user_account(string_request_t const &request,
     auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
     auto const exchangeIter = jsonRoot.find("exchange");
     auto const secretKeyIter = jsonRoot.find("secret_key");
-    auto const passphraseIter = jsonRoot.find("passphrase");
+    auto const passphraseIter = jsonRoot.find("pass_phrase");
     auto const apiKeyIter = jsonRoot.find("api_key");
     auto const tradeTypeIter = jsonRoot.find("trade_type");
     auto const taskIDIter = jsonRoot.find("task_id");
@@ -355,6 +337,9 @@ void session_t::monitor_user_account(string_request_t const &request,
       return error_handler(bad_request(errorMessage, request));
     }
 
+    spdlog::info("Account monitoring scheduled...{} {}", task.userID,
+                 task.taskID);
+
     auto const optResult = queue_account_stream_tasks(task);
     if (!optResult.has_value()) {
       return error_handler(
@@ -377,13 +362,15 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
                                       url_query_t const &) {
   try {
     auto const json_root = json::parse(request.body()).get<json::object_t>();
+    spdlog::info("new pricing tasks: {}\n", request.body());
     auto const request_id_iter = json_root.find("task_id");
-    auto const user_id_iter = json_root.find("task_id");
+    auto const user_id_iter = json_root.find("user_id");
     if (utils::anyElementIsInvalid(json_root, request_id_iter, user_id_iter))
       return error_handler(bad_request("request/user ID missing", request));
 
     auto const request_id = request_id_iter->second.get<json::string_t>();
     auto const user_id = user_id_iter->second.get<json::string_t>();
+    spdlog::info("RequestID: {}, UserID: {}", request_id, user_id);
 
     auto const json_job_list = json_root.at("contracts").get<json::array_t>();
     size_t const job_size = json_job_list.size();

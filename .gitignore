@@ -37,7 +37,13 @@ x64/
 Debug/
 cmake-build-debug/
 tests/
+bin/
+CMakeFiles/
 
+CMakeCache.txt
+Makefile
+
+*.cmake
 *.vcxproj
 *.vcxproj.*
 *.sln
