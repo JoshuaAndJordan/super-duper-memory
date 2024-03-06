@@ -111,7 +111,6 @@ void binance_stream_t::ws_initiate_connection() {
 
 void binance_stream_t::ws_connect_to_names(
     net::ip::tcp::resolver::results_type const &resolved_names) {
-
   m_resolver.reset();
   beast::get_lowest_layer(*m_sslWebStream)
       .expires_after(std::chrono::seconds(30));
@@ -133,7 +132,6 @@ void binance_stream_t::ws_connect_to_names(
 void binance_stream_t::ws_perform_ssl_handshake(
     net::ip::tcp::resolver::results_type::endpoint_type const &ep) {
   auto const host = fmt::format("{}:{}", ws_host, ep.port());
-
   // Set a timeout on the operation
   beast::get_lowest_layer(*m_sslWebStream)
       .expires_after(std::chrono::seconds(30));

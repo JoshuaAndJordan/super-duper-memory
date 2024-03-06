@@ -239,7 +239,6 @@ void kucoin_user_account_stream_t::interpret_generic_messages() {
       static_cast<char const *>(m_readWriteBuffer->cdata().data());
   size_t const dataLength = m_readWriteBuffer->size();
   auto const buffer = std::string_view(bufferCstr, dataLength);
-  spdlog::info(buffer);
   if (m_stage != subscription_stage_e::nothing_left)
     return send_next_subscription();
 
@@ -352,7 +351,6 @@ void addKucoinAccountStream(
   } else
     return;
 
-  spdlog::info("Adding Kucoin account stream to list...");
   list.push_back(std::move(stream));
   list.back()->run();
 }
@@ -365,7 +363,6 @@ void removeKucoinAccountStream(
                    [&info](std::shared_ptr<kucoin_user_account_stream_t> &s) {
                      return s->m_accountInfo == info;
                    });
-  spdlog::info("Removing Kucoin account stream to list...");
   if (iter != list.end()) {
     (*iter)->stop();
     list.erase(iter);

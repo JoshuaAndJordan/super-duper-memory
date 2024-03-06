@@ -1,7 +1,7 @@
-# AccountMonitor
-# Copyright (C) 2023 Joshua and Jordan Ogunyinka
+# PriceMonitor
+# Copyright (C) 2023-2024 Joshua and Jordan Ogunyinka
 
-cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.6.0 FATAL_ERROR)
 
 # Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)

@@ -26,6 +26,21 @@ void http_rest_client_t::rest_api_initiate_connection() {
       });
 }
 
+void http_rest_client_t::insert_header(std::string const &key,
+                                       std::string const &value) {
+  m_optHeader[key] = value;
+}
+
+void http_rest_client_t::add_payload(std::string const &payload) {
+  m_payloads.push(payload);
+}
+
+void http_rest_client_t::set_callbacks(error_callback_t &&errorCallback,
+                                       success_callback_t &&successCallback) {
+  m_errorCallback = std::move(errorCallback);
+  m_successCallback = std::move(successCallback);
+}
+
 void http_rest_client_t::report_error_and_retry(
     boost::system::error_code const ec) {
   if (m_errorCallback)

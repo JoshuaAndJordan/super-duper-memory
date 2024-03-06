@@ -1,4 +1,5 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
+#pragma once
 
 #include "container.hpp"
 #include "enumerations.hpp"

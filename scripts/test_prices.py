@@ -1,9 +1,15 @@
-from typing import Dict, List
+from typing import Dict, List, Any
 import random, string, json
 import requests
 import time
 
 global_tokens = {}
+
+
+class DataF:
+    def __init__(self, task_id: str, contracts: int):
+        self.task_id = task_id
+        self.contracts = contracts
 
 
 def get_token_list(exchange_name):
@@ -53,8 +59,7 @@ def send_pricing_task(obj):
     payload = json.dumps(obj)
     headers = {"Content-Type": "application/json"}
     url = "http://localhost:3421/add_pricing_tasks"
-    response = requests.request("POST", url, headers=headers, data=payload)
-    print(response.text)
+    requests.request("POST", url, headers=headers, data=payload)
 
 
 def send_stop_pricing_task(obj):
@@ -127,7 +132,7 @@ def get_price_for(exchange_name, symbol, trade_type):
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
-def generate_add_pricing_list_object():
+def generate_add_pricing_list_object() -> Dict[str, Any]:
     obj = {
         "task_id": generate_random_string(generate_random_number()),
         "user_id": generate_random_string(15),
@@ -140,35 +145,48 @@ def generate_add_pricing_list_object():
 
 
 def stop_task(user_id, task_list):
-    obj = {"user_id": user_id, "task_list": task_list}
+    obj = {"user_id": user_id, "task_list": [task.task_id for task in task_list]}
     result = send_stop_pricing_task(obj)
     assert result is not None
     assert type(result) is list
     assert len(result) == len(task_list)
 
 def assert_correct_task(data, expected_length):
-    print(data)
     assert data is not None
     assert type(data) is list
     assert len(data) == expected_length
 
 
-def check_user_task_matches(total_tasks, tasks):
-    time.sleep(60)  # sleep for a minute
+def check_user_task_matches(tasks):
+    print("Sleeping for 30 seconds...")
+    time.sleep(15)  # sleep for 30 seconds
 
+    total_tasks = 0
+    task_items = tasks.items()
+
+    for _, task_ids in task_items:
+        for task in task_ids:
+            total_tasks += task.contracts
     data = get_all_price_tasks()
     assert_correct_task(data, total_tasks)
 
-    for user_id, task_ids in tasks.items():
+    counter = 0
+    total_items = len(task_items)
+    for user_id, task_ids in task_items:
+        counter += 1
+        total_tasks = 0
+        for task in task_ids:
+            total_tasks += task.contracts
+
         data = get_price_tasks(user_id)
-        
-        assert_correct_task(data, len(task_ids))
+        assert_correct_task(data, total_tasks)
         time.sleep(1)
 
         stop_task(user_id, task_ids)
 
         data = get_price_tasks(user_id)
         assert_correct_task(data, 0)
+        print(f'Remaining {total_items - counter} to test')
 
     print('Getting all price tasks...')
     data = get_all_price_tasks()
@@ -183,18 +201,22 @@ def test_getting_price():
 			assert type(data) is dict
 			print(f"{data['name']} -> {data['price']} -> {data['type']} ({exchange_name})")
 
+
 def main():
-    user_tasks: Dict[str, List[str]] = {}
-    total_tasks = 10
-    for i in range(total_tasks):
+    user_tasks: Dict[str, List[DataF]] = {}
+    total_tasks = 100_000
+    counter = 0
+    for _ in range(total_tasks):
         task = generate_add_pricing_list_object()
         user_id = task["user_id"]
         if user_id not in user_tasks:
             user_tasks[user_id] = []
-        user_tasks[user_id].append(task["task_id"])
+        user_tasks[user_id].append(DataF(task["task_id"], len(task["contracts"])))
         send_pricing_task(task)
+        counter += 1
+        print(f'Sent {counter} tasks to server')
 
-    check_user_task_matches(total_tasks, user_tasks)
+    check_user_task_matches(user_tasks)
     test_getting_price()
 
 if __name__ == "__main__":

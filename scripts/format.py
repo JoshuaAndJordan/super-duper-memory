@@ -15,7 +15,6 @@ def run_command(filename):
 
 def format_file(root: str)->None:
 	exclude_dir = ['external', '.git', '.idea', 'cmake-build-debug', 'scripts']
-	
 	full_path = os.path.realpath(root)
 	for directory in os.listdir(full_path):
 		path = os.path.join(full_path, directory)

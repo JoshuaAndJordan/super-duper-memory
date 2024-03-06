@@ -1,0 +1,22 @@
+{
+	"database": [
+		{
+			"type": "development",
+			"data": {
+				"username": "cryptolog_user",
+				"password": "MySQL1234zxcv!#$",
+				"db_dns": "cryptolog",
+				"jwt_token": "ds90rfnw45uvbternvtbevrt98ernv8tbny45"
+			}
+		},
+		{
+			"type": "product",
+			"data": {
+				"username": "cryptolog_user",
+				"password": "MySQL1234zxcv!#$",
+				"db_dns": "cryptolog",
+				"jwt_token": "ds90rfnw45uvbternvtbevrt98ernv8tbny45"
+			}
+		}
+	]
+}

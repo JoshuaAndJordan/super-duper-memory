@@ -31,10 +31,11 @@ struct scheduled_price_task_t {
   std::optional<percentage_based_property_t> percentProp = std::nullopt;
   std::optional<timed_based_property_t> timeProp = std::nullopt;
   task_state_e status;
+  uint64_t process_assigned_id = 0;
 
 #ifdef CRYPTOLOG_USING_MSGPACK
   MSGPACK_DEFINE(task_id, user_id, tokens, tradeType, exchange, percentProp,
-                 timeProp, status);
+                 timeProp, status, process_assigned_id);
 #endif
 };
 

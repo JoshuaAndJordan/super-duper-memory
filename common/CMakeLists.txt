@@ -1,7 +1,7 @@
 # CommonLib
 # Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
-cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.6.0 FATAL_ERROR)
 
 # Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
@@ -30,6 +30,7 @@ endif()
 
 if (ENABLE_MSGPACK_USAGE)
   find_package(msgpack-cxx REQUIRED)
+  add_definitions(-DMSGPACK_USE_STD_VARIANT_ADAPTOR)
 endif ()
 
 include_directories(${PROJECT_DIR}/include)
@@ -91,9 +92,9 @@ set(SRC_FILES
         src/https_rest_client.cpp
         src/random_utils.cpp
         src/string_utils.cpp
-        src/uri.cpp)
-
-source_group("Sources" FILES ${SRC_FILES})
+        src/uri.cpp
+        src/price_stream/adaptor/scheduled_task_adaptor.cpp
+)
 
 # Header Files
 set(HEADERS_FILES
@@ -113,9 +114,13 @@ set(HEADERS_FILES
         include/macro_defines.hpp
         include/price_stream/tasks.hpp
         include/http_rest_client.hpp
-        include/http_client.hpp)
+        include/http_client.hpp
+        include/price_stream/adaptor/scheduled_task_adaptor.hpp
+        dbus/include/time_proxy_client_impl.hpp
+        dbus/include/progress_proxy_client_impl.hpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
+source_group("Sources" FILES ${SRC_FILES})
 
 # Add executable to build.
 add_library(${PROJECT_NAME} STATIC ${SRC_FILES} ${HEADERS_FILES})

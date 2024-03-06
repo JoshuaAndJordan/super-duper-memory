@@ -45,10 +45,23 @@ void removeBinanceAccountStream(binance_stream_list_t &,
                                 account_info_t const &);
 void removeOkexAccountStream(okex_stream_list_t &, account_info_t const &);
 
+bool runIOContext(net::io_context &ioContext) {
+  static bool ioContextRan = [&ioContext] {
+    spdlog::info("Restarting ioContext...");
+    if (ioContext.stopped())
+      ioContext.restart();
+    std::thread([&ioContext] { ioContext.run(); }).detach();
+    return true;
+  }();
+  return ioContextRan;
+}
+
 template <typename Stream>
 void exchangeResultWatcher(std::string const &exchangeName,
                            zmq::context_t &msgContext, Stream &resultStream,
                            bool &isRunning) {
+  using variant_type_t = typename Stream::value_type;
+
   auto const address = fmt::format(
       "ipc://{}/{}", EXCHANGE_STREAM_RESULT_DEPOSIT_PATH, exchangeName);
 
@@ -56,19 +69,15 @@ void exchangeResultWatcher(std::string const &exchangeName,
 
   zmq::socket_t writerSocket(msgContext, zmq::socket_type::pub);
   writerSocket.bind(address);
-
   msgpack::sbuffer outBuffer;
-  while (isRunning) {
-    auto data = resultStream.get();
-    std::visit(
-        [&outBuffer, &writerSocket](auto &&data) mutable {
-          msgpack::pack(outBuffer, data);
-          zmq::message_t msg(outBuffer.data(), outBuffer.size());
-          writerSocket.send(msg, zmq::send_flags::none);
 
-          outBuffer.clear();
-        },
-        data);
+  while (isRunning) {
+    variant_type_t data = resultStream.get();
+    msgpack::pack(outBuffer, data);
+    zmq::message_t msg(outBuffer.data(), outBuffer.size());
+    writerSocket.send(msg, zmq::send_flags::none);
+
+    outBuffer.clear();
   }
 }
 
@@ -139,6 +148,7 @@ void binanceAccountMonitor(zmq::context_t &msgContext,
       result.state = task_state_e::stopped;
     }
 
+    runIOContext(ioContext);
     monitorStatusResults.append(result);
   }
   receiverSocket.close();
@@ -218,6 +228,7 @@ void okexAccountMonitor(zmq::context_t &msgContext, net::io_context &ioContext,
       removeOkexAccountStream(streams, accountInfo);
     else
       result.state = task_state_e::stopped;
+    runIOContext(ioContext);
     monitorStatusResults.append(result);
   }
   receiverSocket.close();

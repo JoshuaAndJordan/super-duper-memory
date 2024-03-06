@@ -23,7 +23,7 @@ void store_exchanges_price_into_storage(zmq::context_t &context, bool &running,
   spdlog::info("The address is {}", address);
   auto &instruments = instrument_sink_t::get_all_listed_instruments(exchange);
 
-  zmq::socket_t senderSocket{context, zmq::socket_type::pub};
+  zmq::socket_t senderSocket{context, zmq::socket_type::xpub};
   try {
     senderSocket.bind(address);
   } catch (zmq::error_t const &e) {

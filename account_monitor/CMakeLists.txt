@@ -1,7 +1,7 @@
 # AccountMonitor
 # Copyright (C) 2023 Joshua and Jordan Ogunyinka
 
-cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.6.0 FATAL_ERROR)
 
 # Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
@@ -50,6 +50,7 @@ endif()
 
 if (ENABLE_MSGPACK_USAGE)
     find_package(msgpack-cxx REQUIRED)
+    add_definitions(-DMSGPACK_USE_STD_VARIANT_ADAPTOR)
 endif ()
 
 include_directories(${PROJECT_DIR}/include)

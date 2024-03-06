@@ -1,0 +1,21 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/keep/my/journal/time/1">
+    <interface name="keep.my.journal.interface.Time">
+        <method name="schedule_new_time_task">
+            <arg type="b" direction="out" />
+            <arg type="(ttiiiissas)" name="task" direction="in" />
+        </method>
+        <method name="remove_scheduled_time_task">
+            <arg type="s" direction="in" name="user_id" />
+            <arg type="s" direction="in" name="task_id" />
+        </method>
+        <method name="get_scheduled_tasks_for_user">
+            <arg type="a(ttiiiissas)" direction="out" />
+            <arg type="s" direction="in" name="user_id" />
+        </method>
+        <method name="get_all_scheduled_tasks">
+            <arg type="a(ttiiiissas)" direction="out" />
+        </method>
+    </interface>
+    <service name="keep.my.journal.time"/>
+</node>

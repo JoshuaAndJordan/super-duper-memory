@@ -40,27 +40,17 @@ class http_rest_client_t {
   void sign_request();
   void goto_temporary_sleep();
   void report_error_and_retry(boost::system::error_code);
-  inline void send_next_payload() { rest_api_send_request(); }
-  inline void rest_api_perform_action() { rest_api_send_request(); }
+  void send_next_payload() { rest_api_send_request(); }
+  void rest_api_perform_action() { rest_api_send_request(); }
 
 public:
   http_rest_client_t(net::io_context &, char const *host, char const *service,
                      std::string target);
 
-  inline void insert_header(std::string const &key, std::string const &value) {
-    m_optHeader[key] = value;
-  }
-
-  inline void add_payload(std::string const &payload) {
-    m_payloads.push(payload);
-  }
-
-  inline void set_callbacks(error_callback_t &&errorCallback,
-                            success_callback_t &&successCallback) {
-    m_errorCallback = std::move(errorCallback);
-    m_successCallback = std::move(successCallback);
-  }
-
+  void insert_header(std::string const &key, std::string const &value);
+  void add_payload(std::string const &payload);
+  void set_callbacks(error_callback_t &&errorCallback,
+                     success_callback_t &&successCallback);
   void send_data();
 };
 

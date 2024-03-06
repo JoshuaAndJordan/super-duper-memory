@@ -44,26 +44,12 @@ public:
                    resolver &resolver, char const *const host,
                    char const *const service, std::string const &target);
 
-  inline void set_method(http_method_e const method) { m_method = method; }
-  inline void insert_header(std::string const &key, std::string const &value) {
-    m_optHeader[key] = value;
-  }
-
-  inline void install_auth(signed_message_t const &msg) {
-    m_signedAuth.emplace(msg);
-  }
-
-  void set_payload(std::string const &payload) {
-    if (payload.empty())
-      return m_payload.reset();
-    m_payload.emplace(payload);
-  }
-
-  inline void set_callbacks(error_callback_t &&errorCallback,
-                            success_callback_t &&successCallback) {
-    m_errorCallback = std::move(errorCallback);
-    m_successCallback = std::move(successCallback);
-  }
-  inline void run() { rest_api_initiate_connection(); }
+  void set_method(http_method_e);
+  void insert_header(std::string const &key, std::string const &value);
+  void set_payload(std::string const &payload);
+  void install_auth(signed_message_t const &msg) { m_signedAuth.emplace(msg); }
+  void run() { rest_api_initiate_connection(); }
+  void set_callbacks(error_callback_t &&errorCallback,
+                     success_callback_t &&successCallback);
 };
 } // namespace keep_my_journal

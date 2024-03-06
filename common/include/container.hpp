@@ -1,9 +1,9 @@
 // Copyright (C) 2023 Joshua and Jordan Ogunyinka
 #pragma once
 
+#include <algorithm>
 #include <condition_variable>
 #include <deque>
-#include <list>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -36,6 +36,17 @@ public:
     if (auto iter = m_map.find(key); iter != m_map.end())
       m_map.erase(iter);
   }
+
+  template <typename Result, typename Func>
+  void to_flat_list(Result &result, Func &&func) {
+    std::lock_guard<std::mutex> lockGuard(m_mutex);
+    for (auto const &[_, value] : m_map) {
+      result.reserve(result.size() + value.size());
+      for (auto const &v : value)
+        result.push_back(func(v));
+    }
+  }
+
   template <typename Func> std::vector<Key> get_keys_matching(Func &&func) {
     std::vector<Key> keys;
     std::lock_guard<std::mutex> lockGuard(m_mutex);
@@ -137,6 +148,7 @@ private:
   std::condition_variable m_cv{};
 
 public:
+  using value_type = T;
   explicit waitable_container_t(Container &&container)
       : m_container{std::move(container)} {}
   waitable_container_t() = default;
@@ -193,7 +205,7 @@ public:
 template <typename T> struct mutexed_list_t {
 private:
   std::mutex m_mutex;
-  std::list<T> m_list;
+  std::vector<T> m_list;
 
 public:
   using value_type = T;
@@ -210,13 +222,23 @@ public:
 
     std::lock_guard<std::mutex> lock_g{m_mutex};
     T value{m_list.front()};
-    m_list.pop_front();
+    m_list.erase(m_list.begin());
     return value;
   }
 
   bool empty() {
     std::lock_guard<std::mutex> lock_g{m_mutex};
     return m_list.empty();
+  }
+
+  template <typename Comparator> bool remove_if_exists(Comparator &&comp) {
+    std::lock_guard<std::mutex> lock_g{m_mutex};
+    auto iter = std::find_if(m_list.begin(), m_list.end(),
+                             std::forward<Comparator>(comp));
+    bool const found = m_list.end() == iter;
+    if (found)
+      m_list.erase(iter);
+    return found;
   }
 };
 } // namespace keep_my_journal::utils

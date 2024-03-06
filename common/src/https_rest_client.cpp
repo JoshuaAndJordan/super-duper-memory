@@ -41,8 +41,7 @@ void https_rest_api_t::rest_api_initiate_connection() {
 
 void https_rest_api_t::rest_api_connect_to_resolved_names(
     results_type const &resolved_names) {
-
-  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(30));
+  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(5));
   beast::get_lowest_layer(m_sslStream)
       .async_connect(resolved_names,
                      [this](auto const error_code, auto const &connected_name) {
@@ -52,9 +51,26 @@ void https_rest_api_t::rest_api_connect_to_resolved_names(
                      });
 }
 
+void https_rest_api_t::insert_header(std::string const &key,
+                                     std::string const &value) {
+  m_optHeader[key] = value;
+}
+
+void https_rest_api_t::set_payload(std::string const &payload) {
+  if (payload.empty())
+    return m_payload.reset();
+  m_payload.emplace(payload);
+}
+
+void https_rest_api_t::set_callbacks(error_callback_t &&errorCallback,
+                                     success_callback_t &&successCallback) {
+  m_errorCallback = std::move(errorCallback);
+  m_successCallback = std::move(successCallback);
+}
+
 void https_rest_api_t::rest_api_perform_ssl_handshake(
-    results_type::endpoint_type const &ep) {
-  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(15));
+    results_type::endpoint_type const &) {
+  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(10));
   // Set SNI Hostname (many hosts need this to handshake successfully)
   if (!SSL_set_tlsext_host_name(m_sslStream.native_handle(), m_hostApi)) {
     auto const ec = beast::error_code(static_cast<int>(::ERR_get_error()),
@@ -86,6 +102,9 @@ void https_rest_api_t::rest_api_prepare_request() {
   request.set(field::user_agent, "MyCryptoLog/0.0.1");
   request.set(field::accept, "*/*");
   request.set(field::accept_language, "en-US,en;q=0.5 --compressed");
+
+  for (auto const &[key, value] : m_optHeader)
+    request.set(key, value);
 
   if (m_method == http_method_e::get) {
     request.method(verb::get);
@@ -138,9 +157,8 @@ void https_rest_api_t::rest_api_send_request() {
   beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(20));
   http::async_write(m_sslStream, *m_httpRequest,
                     [this](beast::error_code const ec, std::size_t const) {
-                      if (ec) {
+                      if (ec)
                         return m_errorCallback(ec);
-                      }
                       rest_api_receive_response();
                     });
 }
@@ -150,7 +168,7 @@ void https_rest_api_t::rest_api_receive_response() {
   m_buffer.emplace();
   m_httpResponse.emplace();
 
-  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(20));
+  beast::get_lowest_layer(m_sslStream).expires_after(std::chrono::seconds(10));
   http::async_read(m_sslStream, *m_buffer, *m_httpResponse,
                    [this](beast::error_code ec, std::size_t const sz) {
                      rest_api_on_data_received(ec);
@@ -161,6 +179,10 @@ void https_rest_api_t::rest_api_on_data_received(beast::error_code const ec) {
   if (ec)
     return m_errorCallback(ec);
   m_successCallback(m_httpResponse->body());
+}
+
+void https_rest_api_t::set_method(http_method_e const method) {
+  m_method = method;
 }
 
 } // namespace keep_my_journal
