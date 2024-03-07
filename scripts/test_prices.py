@@ -13,12 +13,11 @@ class DataF:
 
 
 def get_token_list(exchange_name):
-    url = "http://localhost:3421/trading_pairs"
-    params = {"exchange": exchange_name}
+    url = "http://localhost:3421/trading_pairs/" + exchange_name
 
     try:
         response = requests.get(
-            url, params=params, headers={"Content-Type": "application/json"}
+            url, headers={"Content-Type": "application/json"}
         )
         response.raise_for_status()  # Raise an exception for bad responses
 
@@ -40,12 +39,11 @@ def get_all_price_tasks():
         print(f"Error: {e}")
 
 def get_price_tasks(user_id):
-    url = "http://localhost:3421/list_price_tasks"
-    params = {"user_id": user_id}
+    url = "http://localhost:3421/list_price_tasks/" + user_id
 
     try:
         response = requests.get(
-            url, params=params, headers={"Content-Type": "application/json"}
+            url, headers={"Content-Type": "application/json"}
         )
         response.raise_for_status()  # Raise an exception for bad responses
 
@@ -99,7 +97,7 @@ def generate_new_pricing_object_contract():
     symbols = []
 
     while len(symbols) == 0:
-        tokens = random.sample(global_tokens[exchange], generate_random_number(10, 32))
+        tokens = random.sample(global_tokens[exchange], generate_random_number(3, 10))
         symbols = [obj["name"] for obj in tokens if obj["type"] == trade_type]
 
     obj = {
@@ -118,12 +116,11 @@ def generate_new_pricing_object_contract():
     return obj
 
 def get_price_for(exchange_name, symbol, trade_type):
-    url = "http://localhost:3421/latest_price"
-    params = {"exchange": exchange_name, "symbol": symbol, "trade": trade_type}
+    url = f"http://localhost:3421/latest_price/{exchange_name}/{trade_type}/{symbol}"
 
     try:
         response = requests.get(
-            url, params=params, headers={"Content-Type": "application/json"}
+            url, headers={"Content-Type": "application/json"}
         )
         response.raise_for_status()  # Raise an exception for bad responses
 
@@ -204,7 +201,7 @@ def test_getting_price():
 
 def main():
     user_tasks: Dict[str, List[DataF]] = {}
-    total_tasks = 100_000
+    total_tasks = 100
     counter = 0
     for _ in range(total_tasks):
         task = generate_add_pricing_list_object()

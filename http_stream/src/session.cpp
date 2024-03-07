@@ -5,11 +5,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
-#include <filesystem>
 #include <spdlog/spdlog.h>
 
 #include <account_stream/user_scheduled_task.hpp>
-#include <jwt/jwt.hpp>
 #include <price_stream/commodity.hpp>
 
 #include "crypto_utils.hpp"
@@ -22,6 +20,106 @@ using keep_my_journal::instrument_exchange_set_t;
 extern instrument_exchange_set_t uniqueInstruments;
 
 namespace keep_my_journal {
+namespace details {
+string_response_t get_error(std::string const &error_message, error_type_e type,
+                            http::status status, string_request_t const &req) {
+  json::object_t result_obj;
+  result_obj["status"] = type;
+  result_obj["message"] = error_message;
+  json result = result_obj;
+
+  string_response_t response{status, req.version()};
+  response.set(http::field::content_type, "application/json");
+  response.keep_alive(req.keep_alive());
+  response.body() = result.dump();
+  response.prepare_payload();
+  return response;
+}
+
+string_response_t not_found(string_request_t const &request) {
+  return get_error("url not found", error_type_e::ResourceNotFound,
+                   http::status::not_found, request);
+}
+
+string_response_t server_error(std::string const &message, error_type_e type,
+                               string_request_t const &request) {
+  return get_error(message, type, http::status::internal_server_error, request);
+}
+
+string_response_t bad_request(std::string const &message,
+                              string_request_t const &request) {
+  return get_error(message, error_type_e::BadRequest, http::status::bad_request,
+                   request);
+}
+
+string_response_t method_not_allowed(string_request_t const &req) {
+  return get_error("method not allowed", error_type_e::MethodNotAllowed,
+                   http::status::method_not_allowed, req);
+}
+
+string_response_t json_success(json const &body, string_request_t const &req) {
+  string_response_t response{http::status::ok, req.version()};
+  response.set(http::field::content_type, "application/json");
+  response.keep_alive(req.keep_alive());
+  response.body() = body.dump();
+  response.prepare_payload();
+  return response;
+}
+
+string_response_t success(char const *message, string_request_t const &req) {
+  json::object_t result_obj;
+  result_obj["status"] = error_type_e::NoError;
+  result_obj["message"] = message;
+  json result(result_obj);
+
+  string_response_t response{http::status::ok, req.version()};
+  response.set(http::field::content_type, "application/json");
+  response.keep_alive(req.keep_alive());
+  response.body() = result.dump();
+  response.prepare_payload();
+  return response;
+}
+
+string_response_t allowed_options(std::vector<http::verb> const &verbs,
+                                  string_request_t const &request) {
+  std::string buffer{};
+  for (size_t i = 0; i < verbs.size() - 1; ++i)
+    buffer += std::string(http::to_string(verbs[i])) + ", ";
+  buffer += std::string(http::to_string(verbs.back()));
+
+  using http::field;
+
+  string_response_t response{http::status::ok, request.version()};
+  response.set(field::allow, buffer);
+  response.set(field::cache_control, "max-age=604800");
+  response.set(field::server, "kmj-server");
+  response.set(field::access_control_allow_origin, "*");
+  response.set(field::access_control_allow_methods, "GET, POST");
+  response.set(http::field::accept_language, "en-us,en;q=0.5");
+  response.set(field::access_control_allow_headers,
+               "Content-Type, Authorization");
+  response.keep_alive(request.keep_alive());
+  response.body() = {};
+  response.prepare_payload();
+  return response;
+}
+
+url_query_t split_optional_queries(boost::string_view const &optional_query) {
+  url_query_t result{};
+  if (!optional_query.empty()) {
+    auto queries = utils::splitStringView(optional_query, "&");
+    for (auto const &q : queries) {
+      auto split = utils::splitStringView(q, "=");
+      if (split.size() < 2)
+        continue;
+      result.emplace(split[0], split[1]);
+    }
+  }
+  return result;
+}
+} // namespace details
+
+using namespace details;
 
 std::optional<account_monitor_task_result_t>
 queue_account_stream_tasks(account_scheduled_task_t const &task);
@@ -57,98 +155,109 @@ std::uint64_t milliseconds_from_string(duration_unit_e const duration,
   return 0;
 }
 
-void endpoint_t::add_endpoint(std::string const &route,
-                              std::initializer_list<http::verb> const &verbs,
-                              callback_t &&callback) {
-  if (route.empty() || route[0] != '/')
-    throw std::runtime_error{"A valid route starts with a /"};
-  endpoints.emplace(route, rule_t{verbs, std::move(callback)});
-}
-
-std::optional<endpoint_t::rule_iterator>
-endpoint_t::get_rules(std::string const &target) {
-  auto iter = endpoints.find(target);
-  if (iter == endpoints.end()) {
-    return std::nullopt;
-  }
-  return iter;
-}
-
-std::optional<endpoint_t::rule_iterator>
-endpoint_t::get_rules(boost::string_view const &target) {
-  return get_rules(target.to_string());
-}
-
 session_t::session_t(net::io_context &io, net::ip::tcp::socket &&socket)
     : m_ioContext{io}, m_tcpStream{std::move(socket)} {}
+
+bool session_t::is_json_request() const {
+  return boost::iequals(m_contentType, "application/json");
+}
 
 std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   using http::verb;
 
-  m_endpointApis.add_endpoint("/add_pricing_tasks", {verb::post},
-                              JSON_ROUTE_CALLBACK(add_new_pricing_tasks));
-  m_endpointApis.add_endpoint("/list_price_tasks", {verb::get},
-                              JSON_ROUTE_CALLBACK(get_prices_task_status));
-  m_endpointApis.add_endpoint("/stop_price_tasks", {verb::post},
-                              JSON_ROUTE_CALLBACK(stop_prices_task));
-  m_endpointApis.add_endpoint("/all_price_tasks", {verb::get},
-                              JSON_ROUTE_CALLBACK(get_all_running_price_tasks));
-  m_endpointApis.add_endpoint("/trading_pairs", {verb::get},
-                              JSON_ROUTE_CALLBACK(get_trading_pairs_handler));
-  m_endpointApis.add_endpoint("/latest_price", {verb::get},
-                              JSON_ROUTE_CALLBACK(latest_price_handler));
-  m_endpointApis.add_endpoint("/add_account_monitoring", {verb::post},
-                              JSON_ROUTE_CALLBACK(monitor_user_account));
+  m_endpoints.add_endpoint("/add_account_monitoring",
+                           JSON_ROUTE_CALLBACK(monitor_user_account),
+                           verb::post);
+  m_endpoints.add_endpoint("/add_pricing_tasks",
+                           JSON_ROUTE_CALLBACK(add_new_pricing_tasks),
+                           verb::post);
+  m_endpoints.add_endpoint("/stop_price_tasks",
+                           JSON_ROUTE_CALLBACK(stop_prices_task), verb::post);
+  m_endpoints.add_endpoint("/all_price_tasks",
+                           ROUTE_CALLBACK(get_all_running_price_tasks),
+                           verb::get);
+  m_endpoints.add_special_endpoint("/list_price_tasks/{user_id}",
+                                   ROUTE_CALLBACK(get_prices_task_status),
+                                   verb::get);
+  m_endpoints.add_special_endpoint("/latest_price/{exchange}/{trade}/{symbol}",
+                                   ROUTE_CALLBACK(latest_price_handler),
+                                   verb::get);
+  m_endpoints.add_special_endpoint("/trading_pairs/{exchange}",
+                                   ROUTE_CALLBACK(get_trading_pairs_handler),
+                                   verb::get);
+
   return shared_from_this();
 }
 
 void session_t::run() { http_read_data(); }
 
-void session_t::http_read_data() {
-  m_buffer.clear();
-  m_emptyBodyParser.emplace();
-  m_emptyBodyParser->body_limit(RequestBodySize);
-  beast::get_lowest_layer(m_tcpStream).expires_after(std::chrono::minutes(5));
-  http::async_read_header(m_tcpStream, m_buffer, *m_emptyBodyParser,
-                          ASYNC_CALLBACK(on_header_read));
+void session_t::send_response(string_response_t &&response) {
+  auto resp = std::make_shared<string_response_t>(std::move(response));
+  m_cachedResponse = resp;
+  http::async_write(m_tcpStream, *resp,
+                    beast::bind_front_handler(&session_t::on_data_written,
+                                              shared_from_this()));
 }
 
-void session_t::on_header_read(beast::error_code ec, std::size_t const) {
-  if (ec == http::error::end_of_stream)
-    return shutdown_socket();
-
-  if (ec) {
-    return error_handler(
-        server_error(ec.message(), error_type_e::ServerError, {}), true);
-  } else {
-    m_contentType = m_emptyBodyParser->get()[http::field::content_type];
-    m_clientRequest = std::make_unique<http::request_parser<http::string_body>>(
-        std::move(*m_emptyBodyParser));
-    http::async_read(m_tcpStream, m_buffer, *m_clientRequest,
-                     ASYNC_CALLBACK(on_data_read));
-  }
+void session_t::http_read_data() {
+  m_buffer.clear();
+  m_clientRequest.emplace();
+  m_clientRequest->body_limit(RequestBodySize);
+  beast::get_lowest_layer(m_tcpStream).expires_after(std::chrono::minutes(5));
+  http::async_read(m_tcpStream, m_buffer, *m_clientRequest,
+                   ASYNC_CALLBACK(on_data_read));
 }
 
 void session_t::handle_requests(string_request_t const &request) {
-  std::string const request_target{utils::decodeUrl(request.target())};
+  std::string request_target{utils::decodeUrl(request.target())};
+  while (boost::ends_with(request_target, "/"))
+    request_target.pop_back();
+  m_thisRequest = request;
 
   if (request_target.empty())
-    return error_handler(not_found(request));
+    return error_handler(details::not_found(request));
 
   auto const method = request.method();
   boost::string_view request_target_view = request_target;
   auto split = utils::splitStringView(request_target_view, "?");
-  if (auto iter = m_endpointApis.get_rules(split[0]); iter.has_value()) {
+  auto const &target = split[0];
+
+  // check the usual rules "table", otherwise check the special routes
+  if (auto iter = m_endpoints.get_rules(target); iter.has_value()) {
+    if (method == http::verb::options) {
+      return send_response(
+          allowed_options(iter.value()->second.verbs, request));
+    }
+
     auto const iter_end = iter.value()->second.verbs.cend();
     auto const found_iter =
         std::find(iter.value()->second.verbs.cbegin(), iter_end, method);
     if (found_iter == iter_end)
       return error_handler(method_not_allowed(request));
     boost::string_view const query_string = split.size() > 1 ? split[1] : "";
-    auto url_query_{split_optional_queries(query_string)};
-    return iter.value()->second.routeCallback(request, url_query_);
+    auto url_query{split_optional_queries(query_string)};
+    return iter.value()->second.route_callback(url_query);
   }
-  return error_handler(not_found(request));
+
+  auto res = m_endpoints.get_special_rules(target);
+  if (!res.has_value())
+    return error_handler(not_found(request));
+
+  auto &placeholder = *res;
+  if (method == http::verb::options)
+    return send_response(allowed_options(placeholder.rule->verbs, request));
+  auto &rule = placeholder.rule.value();
+  auto const found_iter =
+      std::find(rule.verbs.cbegin(), rule.verbs.cend(), method);
+  if (found_iter == rule.verbs.end())
+    return error_handler(method_not_allowed(request));
+
+  boost::string_view const query_string = split.size() > 1 ? split[1] : "";
+  auto url_query{split_optional_queries(query_string)};
+
+  for (auto const &[key, value] : placeholder.placeholders)
+    url_query[key] = value;
+  rule.route_callback(url_query);
 }
 
 void session_t::on_data_read(beast::error_code const ec, std::size_t const) {
@@ -164,12 +273,11 @@ void session_t::on_data_read(beast::error_code const ec, std::size_t const) {
                                       string_request_t{}),
                          true);
   }
-
+  auto const content_type = m_clientRequest->get()[http::field::content_type];
+  // For some reason, ^^ content_type is implicitly convertible to std::string
+  // on my machine but not inside the docker container.
+  m_contentType = std::string(content_type.data(), content_type.size());
   return handle_requests(m_clientRequest->get());
-}
-
-bool session_t::is_closed() {
-  return !beast::get_lowest_layer(m_tcpStream).socket().is_open();
 }
 
 void session_t::shutdown_socket() {
@@ -184,7 +292,7 @@ void session_t::shutdown_socket() {
 
 void session_t::error_handler(string_response_t &&response, bool close_socket) {
   auto resp = std::make_shared<string_response_t>(std::move(response));
-  m_resp = resp;
+  m_cachedResponse = resp;
   if (!close_socket) {
     http::async_write(m_tcpStream, *resp, ASYNC_CALLBACK(on_data_written));
   } else {
@@ -201,18 +309,18 @@ void session_t::on_data_written(
   if (ec)
     return spdlog::error(ec.message());
 
-  m_resp = nullptr;
+  m_cachedResponse = nullptr;
   http_read_data();
 }
 
-void session_t::get_trading_pairs_handler(string_request_t const &request,
-                                          url_query_t const &optional_query) {
+void session_t::get_trading_pairs_handler(url_query_t const &optional_query) {
+  auto const &request = m_thisRequest;
   auto const exchange_iter = optional_query.find("exchange");
   if (exchange_iter == optional_query.end())
     return error_handler(bad_request("query `exchange` missing", request));
 
-  auto const exchange = utils::stringToExchange(
-      boost::to_lower_copy(exchange_iter->second.to_string()));
+  auto const exchange =
+      utils::stringToExchange(boost::to_lower_copy(exchange_iter->second));
 
   if (exchange_e::total == exchange)
     return error_handler(bad_request("invalid exchange specified", request));
@@ -221,56 +329,53 @@ void session_t::get_trading_pairs_handler(string_request_t const &request,
   return send_response(json_success(names, request));
 }
 
-void session_t::get_prices_task_status(string_request_t const &request,
-                                       url_query_t const &optional_query) {
+void session_t::get_prices_task_status(url_query_t const &optional_query) {
+  auto const &request = m_thisRequest;
+
   auto const user_id_iter = optional_query.find("user_id");
   if (user_id_iter == optional_query.end() || user_id_iter->second.empty())
     return error_handler(bad_request("query `user_id` missing", request));
-  auto const task_list =
-      get_price_tasks_for_user(user_id_iter->second.to_string());
+  auto const task_list = get_price_tasks_for_user(user_id_iter->second);
   return send_response(json_success(task_list, request));
 }
 
-void session_t::latest_price_handler(string_request_t const &request,
-                                     url_query_t const &optional_query) {
+void session_t::latest_price_handler(url_query_t const &optional_query) {
   auto const symbol_iter = optional_query.find("symbol");
   auto const exchange_iter = optional_query.find("exchange");
   auto const trade_iter = optional_query.find("trade");
   if (utils::anyElementIsInvalid(optional_query, symbol_iter, exchange_iter,
                                  trade_iter)) {
     return error_handler(
-        bad_request("query symbol/exchange/trade missing", request));
+        bad_request("query symbol/exchange/trade missing", m_thisRequest));
   }
 
-  auto const exchange = utils::stringToExchange(
-      utils::toLowerCopy(exchange_iter->second.to_string()));
+  auto const exchange =
+      utils::stringToExchange(utils::toLowerCopy(exchange_iter->second));
   instrument_type_t instr;
-  instr.name =
-      utils::trimCopy(utils::toUpperCopy(symbol_iter->second.to_string()));
-  instr.tradeType = utils::stringToTradeType(
-      utils::toLowerCopy(trade_iter->second.to_string()));
+  instr.name = utils::trimCopy(utils::toUpperCopy(symbol_iter->second));
+  instr.tradeType =
+      utils::stringToTradeType(utils::toLowerCopy(trade_iter->second));
 
   if (instr.name.empty() || exchange == exchange_e::total ||
       instr.tradeType == trade_type_e::total) {
-    return error_handler(bad_request("malformed query", request));
+    return error_handler(bad_request("malformed query", m_thisRequest));
   }
 
   auto &tokens = uniqueInstruments[exchange];
   auto result = tokens.find_item(instr);
   if (result.has_value())
-    return send_response(json_success(*result, request));
-  return send_response(json_success("not found", request));
+    return send_response(json_success(*result, m_thisRequest));
+  return send_response(json_success("not found", m_thisRequest));
 }
 
-void session_t::get_all_running_price_tasks(string_request_t const &request,
-                                            url_query_t const &) {
-  send_response(json_success(get_price_tasks_for_all(), request));
+void session_t::get_all_running_price_tasks(url_query_t const &) {
+  send_response(json_success(get_price_tasks_for_all(), m_thisRequest));
 }
 
-void session_t::stop_prices_task(string_request_t const &request,
-                                 url_query_t const &) {
+void session_t::stop_prices_task(url_query_t const &) {
   try {
-    auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
+    auto const jsonRoot =
+        json::parse(m_thisRequest.body()).get<json::object_t>();
     auto const taskListIter = jsonRoot.find("task_list");
     auto const userIDIter = jsonRoot.find("user_id");
     if (utils::anyElementIsInvalid(jsonRoot, taskListIter, userIDIter))
@@ -284,17 +389,17 @@ void session_t::stop_prices_task(string_request_t const &request,
       task.user_id = userID;
       stop_scheduled_price_task(task);
     }
-    return send_response(json_success(taskList, request));
+    return send_response(json_success(taskList, m_thisRequest));
   } catch (std::exception const &e) {
     spdlog::error(e.what());
-    return error_handler(bad_request("JSON object is invalid", request));
+    return error_handler(bad_request("JSON object is invalid", m_thisRequest));
   }
 }
 
-void session_t::monitor_user_account(string_request_t const &request,
-                                     url_query_t const &) {
+void session_t::monitor_user_account(url_query_t const &) {
   try {
-    auto const jsonRoot = json::parse(request.body()).get<json::object_t>();
+    auto const jsonRoot =
+        json::parse(m_thisRequest.body()).get<json::object_t>();
     auto const exchangeIter = jsonRoot.find("exchange");
     auto const secretKeyIter = jsonRoot.find("secret_key");
     auto const passphraseIter = jsonRoot.find("pass_phrase");
@@ -316,14 +421,15 @@ void session_t::monitor_user_account(string_request_t const &request,
     task.tradeType =
         utils::stringToTradeType(tradeTypeIter->second.get<json::string_t>());
 
-    if (task.exchange == exchange_e::total)
-      return error_handler(bad_request("Invalid exchange specified", request));
-
+    if (task.exchange == exchange_e::total) {
+      return error_handler(
+          bad_request("Invalid exchange specified", m_thisRequest));
+    }
     // trade type is only necessary for a kucoin account
     if (task.exchange == exchange_e::kucoin &&
         task.tradeType == trade_type_e::total) {
-      return error_handler(
-          bad_request("Invalid trade type specified for kucoin data", request));
+      return error_handler(bad_request(
+          "Invalid trade type specified for kucoin data", m_thisRequest));
     }
 
     task.passphrase = passphraseIter->second.get<json::string_t>();
@@ -333,7 +439,7 @@ void session_t::monitor_user_account(string_request_t const &request,
 
     if (task.taskID.empty()) {
       auto const errorMessage = "the task ID supplied is empty, cannot proceed";
-      return error_handler(bad_request(errorMessage, request));
+      return error_handler(bad_request(errorMessage, m_thisRequest));
     }
 
     spdlog::info("Account monitoring scheduled...{} {}", task.userID,
@@ -343,29 +449,30 @@ void session_t::monitor_user_account(string_request_t const &request,
     if (!optResult.has_value()) {
       return error_handler(
           server_error("there was a problem scheduling this task",
-                       error_type_e::ServerError, request));
+                       error_type_e::ServerError, m_thisRequest));
     }
 
     json::object_t jsonObject;
     jsonObject["task_id"] = task.taskID;
     jsonObject["state"] = (int)optResult->state;
 
-    return send_response(json_success(jsonObject, request));
+    return send_response(json_success(jsonObject, m_thisRequest));
   } catch (std::exception const &e) {
     spdlog::error(e.what());
-    return error_handler(bad_request("JSON object is invalid", request));
+    return error_handler(bad_request("JSON object is invalid", m_thisRequest));
   }
 }
 
-void session_t::add_new_pricing_tasks(string_request_t const &request,
-                                      url_query_t const &) {
+void session_t::add_new_pricing_tasks(url_query_t const &) {
   try {
-    auto const json_root = json::parse(request.body()).get<json::object_t>();
+    auto const json_root =
+        json::parse(m_thisRequest.body()).get<json::object_t>();
     auto const request_id_iter = json_root.find("task_id");
     auto const user_id_iter = json_root.find("user_id");
-    if (utils::anyElementIsInvalid(json_root, request_id_iter, user_id_iter))
-      return error_handler(bad_request("request/user ID missing", request));
-
+    if (utils::anyElementIsInvalid(json_root, request_id_iter, user_id_iter)) {
+      return error_handler(
+          bad_request("request/user ID missing", m_thisRequest));
+    }
     auto const request_id = request_id_iter->second.get<json::string_t>();
     auto const user_id = user_id_iter->second.get<json::string_t>();
 
@@ -402,9 +509,10 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
             .emplace<scheduled_price_task_t::timed_based_property_t>({});
 
         auto durationIter = json_object.find("duration");
-        if (durationIter == json_object.end())
-          return error_handler(bad_request("duration not specified", request));
-
+        if (durationIter == json_object.end()) {
+          return error_handler(
+              bad_request("duration not specified", m_thisRequest));
+        }
         json::number_integer_t interval = 0;
         if (intervalIter->second.is_number())
           interval = intervalIter->second.get<json::number_integer_t>();
@@ -416,8 +524,8 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
         auto const intervalDur =
             milliseconds_from_string(new_task.timeProp->duration, interval);
         if (intervalDur == 0) {
-          return error_handler(
-              bad_request("something is wrong with the duration", request));
+          return error_handler(bad_request(
+              "something is wrong with the duration", m_thisRequest));
         }
         new_task.timeProp->timeMS = intervalDur;
       } else if (percentageIter != json_object.end()) {
@@ -425,9 +533,10 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
             .emplace<scheduled_price_task_t::percentage_based_property_t>({});
 
         auto directionIter = json_object.find("direction");
-        if (directionIter == json_object.end())
-          return error_handler(bad_request("direction not specified", request));
-
+        if (directionIter == json_object.end()) {
+          return error_handler(
+              bad_request("direction not specified", m_thisRequest));
+        }
         auto percentage =
             std::abs(percentageIter->second.get<json::number_float_t>());
         auto const direction =
@@ -435,17 +544,19 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
         new_task.percentProp->direction =
             utils::stringToPriceDirection(direction);
 
-        if (new_task.percentProp->direction == price_direction_e::invalid)
-          return error_handler(bad_request(
-              "something is wrong with the specified direction", request));
+        if (new_task.percentProp->direction == price_direction_e::invalid) {
+          return error_handler(
+              bad_request("something is wrong with the specified direction",
+                          m_thisRequest));
+        }
 
         if (new_task.percentProp->direction == price_direction_e::down)
           percentage *= -1.0;
 
-        if (percentage == 0.0)
+        if (percentage == 0.0) {
           return error_handler(
-              bad_request("invalid percentage specified", request));
-
+              bad_request("invalid percentage specified", m_thisRequest));
+        }
         new_task.percentProp->percentage = percentage;
       }
 
@@ -462,103 +573,10 @@ void session_t::add_new_pricing_tasks(string_request_t const &request,
     if (!request_id.empty())
       result["id"] = request_id;
 
-    return send_response(json_success(result, request));
+    return send_response(json_success(result, m_thisRequest));
   } catch (std::exception const &e) {
     spdlog::error(e.what());
-    return error_handler(bad_request("JSON object is invalid", request));
+    return error_handler(bad_request("JSON object is invalid", m_thisRequest));
   }
 }
-
-bool session_t::is_json_request() const {
-  return boost::iequals(m_contentType, "application/json");
-}
-
-// =========================STATIC FUNCTIONS==============================
-
-string_response_t session_t::not_found(string_request_t const &request) {
-  return get_error("url not found", error_type_e::ResourceNotFound,
-                   http::status::not_found, request);
-}
-
-string_response_t session_t::server_error(std::string const &message,
-                                          error_type_e type,
-                                          string_request_t const &request) {
-  return get_error(message, type, http::status::internal_server_error, request);
-}
-
-string_response_t session_t::bad_request(std::string const &message,
-                                         string_request_t const &request) {
-  return get_error(message, error_type_e::BadRequest, http::status::bad_request,
-                   request);
-}
-
-string_response_t session_t::method_not_allowed(string_request_t const &req) {
-  return get_error("method not allowed", error_type_e::MethodNotAllowed,
-                   http::status::method_not_allowed, req);
-}
-
-string_response_t session_t::get_error(std::string const &error_message,
-                                       error_type_e type, http::status status,
-                                       string_request_t const &req) {
-  json::object_t result_obj;
-  result_obj["status"] = type;
-  result_obj["message"] = error_message;
-  json result = result_obj;
-
-  string_response_t response{status, req.version()};
-  response.set(http::field::content_type, "application/json");
-  response.keep_alive(req.keep_alive());
-  response.body() = result.dump();
-  response.prepare_payload();
-  return response;
-}
-
-string_response_t session_t::json_success(json const &body,
-                                          string_request_t const &req) {
-  string_response_t response{http::status::ok, req.version()};
-  response.set(http::field::content_type, "application/json");
-  response.keep_alive(req.keep_alive());
-  response.body() = body.dump();
-  response.prepare_payload();
-  return response;
-}
-
-string_response_t session_t::success(char const *message,
-                                     string_request_t const &req) {
-  json::object_t result_obj;
-  result_obj["status"] = error_type_e::NoError;
-  result_obj["message"] = message;
-  json result(result_obj);
-
-  string_response_t response{http::status::ok, req.version()};
-  response.set(http::field::content_type, "application/json");
-  response.keep_alive(req.keep_alive());
-  response.body() = result.dump();
-  response.prepare_payload();
-  return response;
-}
-
-void session_t::send_response(string_response_t &&response) {
-  auto resp = std::make_shared<string_response_t>(std::move(response));
-  m_resp = resp;
-  http::async_write(m_tcpStream, *resp,
-                    beast::bind_front_handler(&session_t::on_data_written,
-                                              shared_from_this()));
-}
-
-url_query_t
-session_t::split_optional_queries(boost::string_view const &optional_query) {
-  url_query_t result{};
-  if (!optional_query.empty()) {
-    auto queries = utils::splitStringView(optional_query, "&");
-    for (auto const &q : queries) {
-      auto split = utils::splitStringView(q, "=");
-      if (split.size() < 2)
-        continue;
-      result.emplace(split[0], split[1]);
-    }
-  }
-  return result;
-}
-
 } // namespace keep_my_journal

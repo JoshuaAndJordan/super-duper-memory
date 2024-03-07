@@ -107,6 +107,7 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 set(SRC_FILES
         main.cpp
         src/server.cpp
+        src/endpoint.cpp
         src/session.cpp
         src/scheduled_account_tasks.cpp
         src/scheduled_price_tasks.cpp
@@ -121,6 +122,7 @@ set(HEADERS_FILES
         include/cli.hpp
         include/user_info.hpp
         include/scheduled_price_tasks.hpp
+        include/endpoint.hpp
 )
 
 source_group("Headers" FILES ${HEADERS_FILES})

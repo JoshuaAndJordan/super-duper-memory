@@ -29,8 +29,8 @@ std::string decodeUrl(boost::string_view const &encoded_string);
 std::string stringViewToString(boost::string_view const &str_view);
 std::string integerListToString(std::vector<uint32_t> const &vec);
 std::string_view boostViewToStdStringView(boost::string_view);
-std::vector<boost::string_view> splitStringView(boost::string_view const &str,
-                                                char const *delimeter);
+std::vector<std::string> splitStringView(boost::string_view const &str,
+                                         char const *const delim);
 void splitStringInto(std::vector<std::string> &, std::string const &text,
                      std::string const &delim);
 void replaceIfStarts(std::string &, std::string const &findText,
