@@ -116,8 +116,10 @@ set(HEADERS_FILES
         include/http_rest_client.hpp
         include/http_client.hpp
         include/price_stream/adaptor/scheduled_task_adaptor.hpp
-        dbus/include/time_proxy_client_impl.hpp
-        dbus/include/progress_proxy_client_impl.hpp)
+        dbus/use/time_proxy_client_impl.hpp
+        dbus/use/progress_proxy_client_impl.hpp
+        include/price_stream/adaptor/commodity_adaptor.hpp
+        dbus/use/price_task_result_client_impl.hpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
 source_group("Sources" FILES ${SRC_FILES})

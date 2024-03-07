@@ -1,15 +1,26 @@
 #include "time_based_watch.hpp"
-#include "price_stream/adaptor/scheduled_task_adaptor.hpp"
+#include "dbus/use/price_task_result_client_impl.hpp"
+#include "price_stream/adaptor/commodity_adaptor.hpp"
+
 #include <boost/asio/deadline_timer.hpp>
 #include <thread>
 
 using keep_my_journal::instrument_exchange_set_t;
 extern instrument_exchange_set_t uniqueInstruments;
+
 namespace keep_my_journal {
 using dbus_timed_based_struct_t = dbus::adaptor::dbus_time_task_t;
 
-void send_price_task_result(scheduled_price_task_result_t const &) {
-  //
+struct scheduled_time_task_result_t {
+  dbus::adaptor::dbus_time_task_t task;
+  std::vector<dbus::adaptor::dbus_instrument_type_t> tokens;
+};
+
+utils::waitable_container_t<scheduled_time_task_result_t>
+    scheduled_task_results{};
+
+inline void send_price_task_result(scheduled_time_task_result_t &&res) {
+  scheduled_task_results.append(std::move(res));
 }
 
 class time_based_watch_price_t::time_based_watch_price_impl_t
@@ -17,6 +28,7 @@ class time_based_watch_price_t::time_based_watch_price_impl_t
   net::io_context &m_ioContext;
   utils::unique_elements_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
+  dbus::adaptor::dbus_time_task_t const m_dbusTask;
   std::optional<net::deadline_timer> m_timer = std::nullopt;
 
   void next_timer();
@@ -25,7 +37,8 @@ public:
   time_based_watch_price_impl_t(net::io_context &ioContext,
                                 scheduled_price_task_t const &task)
       : m_ioContext(ioContext), m_instruments(uniqueInstruments[task.exchange]),
-        m_task(task) {}
+        m_task(task),
+        m_dbusTask(dbus::adaptor::scheduled_task_to_dbus_time(task)) {}
 
   ~time_based_watch_price_impl_t() { stop(); }
   scheduled_price_task_t task_data() const { return m_task; }
@@ -51,8 +64,8 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::next_timer() {
 
 void time_based_watch_price_t::time_based_watch_price_impl_t::fetch_prices() {
   auto const instruments = m_instruments.to_list();
-  scheduled_price_task_result_t result;
-  result.result.reserve(m_task.tokens.size());
+  scheduled_time_task_result_t data;
+  data.tokens.reserve(m_task.tokens.size());
 
   for (auto const &instrument : m_task.tokens) {
     auto const iter =
@@ -61,16 +74,17 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::fetch_prices() {
                        return instr.tradeType == m_task.tradeType &&
                               instr.name == instrument;
                      });
-    if (iter != instruments.cend())
-      result.result.push_back(*iter);
+    if (iter != instruments.cend()) {
+      data.tokens.emplace_back(iter->name, iter->currentPrice, iter->open24h,
+                               (int)iter->tradeType);
+    }
   }
 
-  if (!result.result.empty()) {
-    result.task = m_task;
-    send_price_task_result(result);
+  if (!data.tokens.empty()) {
+    data.task = m_dbusTask;
+    send_price_task_result(std::move(data));
   }
 
-  // do something with the result and then schedule next timer call
   next_timer();
 }
 
@@ -180,5 +194,21 @@ std::vector<dbus_timed_based_struct_t> get_all_scheduled_tasks_impl() {
   std::vector<dbus_timed_based_struct_t> result;
   global_task_list.to_flat_list(result, func);
   return result;
+}
+
+inline dbus::adaptor::dbus_time_task_result_t
+time_result_to_dbus_arg(scheduled_time_task_result_t &&task) {
+  return dbus::adaptor::dbus_time_task_result_t{std::move(task.task),
+                                                std::move(task.tokens)};
+}
+
+void result_sender_callback(bool &isRunning) {
+  prices_result_proxy_impl_t result_proxy("keep.my.journal.prices.result",
+                                          "/keep/my/journal/prices/result/1");
+  while (isRunning) {
+    auto result = scheduled_task_results.get();
+    result_proxy.broadcast_time_price_result(
+        time_result_to_dbus_arg(std::move(result)));
+  }
 }
 } // namespace keep_my_journal

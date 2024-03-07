@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dbus/include/progress_adaptor_server.hpp"
+#include "dbus/base/progress_adaptor_server.hpp"
 #include "price_stream/adaptor/scheduled_task_adaptor.hpp"
 
 namespace keep_my_journal {

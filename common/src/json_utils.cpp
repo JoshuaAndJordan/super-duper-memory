@@ -6,13 +6,6 @@ std::string exchangesToString(exchange_e);
 std::string tradeTypeToString(trade_type_e);
 } // namespace utils
 
-void to_json(json &j, scheduled_price_task_result_t const &data) {
-  json::object_t obj;
-  obj["results"] = data.result;
-  obj["task"] = data.task;
-  j = obj;
-}
-
 void to_json(json &j, scheduled_price_task_t const &data) {
   json::object_t obj;
   obj["task_id"] = data.task_id;

@@ -5,7 +5,8 @@ instrument_exchange_set_t uniqueInstruments{};
 
 namespace keep_my_journal {
 void monitor_tokens_latest_prices(bool &isRunning);
-}
+void result_sender_callback(bool &);
+} // namespace keep_my_journal
 
 int main() {
   bool isRunning = true;
@@ -14,6 +15,11 @@ int main() {
   std::thread{[&isRunning] {
     // defined in latest_prices_watcher.cpp
     keep_my_journal::monitor_tokens_latest_prices(isRunning);
+  }}.detach();
+
+  std::thread{[&isRunning] {
+    // defined in time_based_watch.cpp
+    keep_my_journal::result_sender_callback(isRunning);
   }}.detach();
 
   char const *const service_name = "keep.my.journal.time";

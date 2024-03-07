@@ -40,7 +40,6 @@ std::optional<json::object_t> read_object_json_file(std::string const &);
 
 void to_json(json &j, scheduled_price_task_t const &data);
 void to_json(json &j, instrument_type_t const &instr);
-void to_json(json &j, scheduled_price_task_result_t const &);
 namespace binance {
 void to_json(json &j, ws_account_update_t const &);
 void to_json(json &j, ws_order_info_t const &);

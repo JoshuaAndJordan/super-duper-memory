@@ -23,6 +23,8 @@ if [ -n "$1" ]; then
   sudo rm -rf common/dbus/include/progress_adaptor_server.hpp \
     common/dbus/include/progress_proxy_client.hpp \
     common/dbus/include/time_adaptor_server.hpp \
-    common/dbus/include/time_proxy_client.hpp
+    common/dbus/include/time_proxy_client.hpp \
+    common/dbus/include/price_task_result_client.hpp \
+    common/dbus/include/price_task_result_server.hpp
 #  sudo rm -rf x86-build
 fi

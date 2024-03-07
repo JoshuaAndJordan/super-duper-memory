@@ -1,6 +1,6 @@
 #pragma once
 
-#include "progress_proxy_client.hpp"
+#include "dbus/base/progress_proxy_client.hpp"
 #include <sdbus-c++/ProxyInterfaces.h>
 
 namespace keep_my_journal {

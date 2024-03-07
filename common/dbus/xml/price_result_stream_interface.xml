@@ -1,0 +1,12 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/keep/my/journal/prices/result/1">
+    <interface name="keep.my.journal.prices.interface.result">
+        <method name="broadcast_progress_price_result">
+            <arg type="((tdiiiissas)a(sddi))" name="result" direction="in" />
+        </method>
+        <method name="broadcast_time_price_result">
+            <arg type="((ttiiiissas)a(sddi))" name="result" direction="in" />
+        </method>
+    </interface>
+    <service name="keep.my.journal.prices.result"/>
+</node>

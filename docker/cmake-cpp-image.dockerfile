@@ -59,8 +59,8 @@ WORKDIR /
 RUN mkdir -p run_crypto
 WORKDIR run_crypto
 RUN mkdir -p log log/account_monitor log/account_tasks log/http_stream \
-    log/price_message_delegator log/price_monitor log/progress_tasks \
-    log/nginx log/time_tasks
+    log/price_result_stream log/price_monitor log/progress_tasks log/nginx \
+    log/time_tasks
 
 COPY docker/files/supervisord.conf /etc/supervisor/supervisord.conf
 COPY docker/files/nginx.conf /etc/nginx/nginx.conf

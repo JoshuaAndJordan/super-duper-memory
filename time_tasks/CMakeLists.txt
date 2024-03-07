@@ -105,7 +105,7 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 set(SRC_FILES
       main.cpp
       src/time_based_watch.cpp
-        src/lastest_prices.cpp)
+      src/lastest_prices.cpp)
 
 #Header Files
 set(HEADERS_FILES

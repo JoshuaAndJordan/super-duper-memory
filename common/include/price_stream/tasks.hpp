@@ -38,14 +38,4 @@ struct scheduled_price_task_t {
                  timeProp, status, process_assigned_id);
 #endif
 };
-
-struct scheduled_price_task_result_t {
-  scheduled_price_task_t task;
-  std::vector<instrument_type_t> result;
-
-#ifdef CRYPTOLOG_USING_MSGPACK
-  MSGPACK_DEFINE(task, result);
-#endif
-};
-
 } // namespace keep_my_journal

@@ -36,6 +36,8 @@ x64/
 .idea/
 Debug/
 cmake-build-debug/
+common/dbus/base/
+x86-build/
 tests/
 bin/
 CMakeFiles/

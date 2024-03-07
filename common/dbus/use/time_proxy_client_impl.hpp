@@ -1,6 +1,6 @@
 #pragma once
 
-#include "time_proxy_client.hpp"
+#include "dbus/base/time_proxy_client.hpp"
 #include <sdbus-c++/ProxyInterfaces.h>
 
 namespace keep_my_journal {

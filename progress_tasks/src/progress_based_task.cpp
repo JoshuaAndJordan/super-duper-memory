@@ -1,5 +1,7 @@
 #include "progress_based_task.hpp"
-#include "price_stream/adaptor/scheduled_task_adaptor.hpp"
+#include "dbus/use/price_task_result_client_impl.hpp"
+#include "price_stream/adaptor/commodity_adaptor.hpp"
+
 #include <boost/asio/deadline_timer.hpp>
 #include <thread>
 
@@ -9,8 +11,16 @@ extern instrument_exchange_set_t uniqueInstruments;
 namespace keep_my_journal {
 using dbus_progress_struct_t = dbus::adaptor::dbus_progress_struct_t;
 
-void send_price_task_result(scheduled_price_task_result_t const &) {
-  //
+struct scheduled_progress_task_result_t {
+  dbus::adaptor::dbus_progress_struct_t task;
+  std::vector<dbus::adaptor::dbus_instrument_type_t> tokens;
+};
+
+utils::waitable_container_t<scheduled_progress_task_result_t>
+    scheduled_task_results{};
+
+inline void send_price_task_result(scheduled_progress_task_result_t &&res) {
+  scheduled_task_results.append(std::move(res));
 }
 
 class progress_based_watch_price_t::progress_based_watch_price_impl_t
@@ -18,6 +28,7 @@ class progress_based_watch_price_t::progress_based_watch_price_impl_t
   net::io_context &m_ioContext;
   utils::unique_elements_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
+  dbus::adaptor::dbus_progress_struct_t const m_dbusTask;
   std::vector<instrument_type_t> m_snapshots;
   std::optional<net::deadline_timer> m_periodicTimer = std::nullopt;
   bool m_isLesserThanZero = false;
@@ -26,7 +37,8 @@ public:
   progress_based_watch_price_impl_t(net::io_context &ioContext,
                                     scheduled_price_task_t const &task)
       : m_ioContext(ioContext), m_instruments(uniqueInstruments[task.exchange]),
-        m_task(task) {
+        m_task(task),
+        m_dbusTask(dbus::adaptor::scheduled_task_to_dbus_progress(task)) {
     auto const snapshot = m_instruments.to_list();
     m_snapshots.reserve(task.tokens.size());
 
@@ -54,6 +66,9 @@ public:
   }
 
   void next_timer() {
+    if (!m_periodicTimer)
+      return;
+
     m_periodicTimer->expires_from_now(boost::posix_time::milliseconds(100));
     m_periodicTimer->async_wait(
         [self = shared_from_this()](boost::system::error_code const ec) {
@@ -74,7 +89,7 @@ public:
   scheduled_price_task_t task_data() const { return m_task; }
 
   void check_prices() {
-    scheduled_price_task_result_t result;
+    scheduled_progress_task_result_t result;
 
     for (auto const &instrument : m_snapshots) {
       auto optInstr = m_instruments.find_item(instrument);
@@ -83,28 +98,35 @@ public:
         continue;
 
       if (m_isLesserThanZero) {
-        if (instrument.currentPrice <= optInstr->currentPrice)
-          result.result.push_back(instrument);
+        if (instrument.currentPrice <= optInstr->currentPrice) {
+          result.tokens.emplace_back(instrument.name, instrument.currentPrice,
+                                     instrument.open24h,
+                                     (int)instrument.tradeType);
+        }
       } else {
-        if (instrument.currentPrice >= optInstr->currentPrice)
-          result.result.push_back(instrument);
+        if (instrument.currentPrice >= optInstr->currentPrice) {
+          result.tokens.emplace_back(instrument.name, instrument.currentPrice,
+                                     instrument.open24h,
+                                     (int)instrument.tradeType);
+        }
       }
     }
 
-    if (!result.result.empty()) {
-      for (auto const &instrument : result.result) {
+    if (!result.tokens.empty()) {
+      for (auto const &instrument : result.tokens) {
         m_snapshots.erase(
             std::remove_if(m_snapshots.begin(), m_snapshots.end(),
                            [instrument](instrument_type_t const &instr) {
-                             return instrument.tradeType == instr.tradeType &&
-                                    instrument.name == instr.name;
+                             return instrument.get<3>() ==
+                                        (int)instr.tradeType &&
+                                    instrument.get<0>() == instr.name;
                            }),
             m_snapshots.end());
       }
 
       // send notification
-      result.task = m_task;
-      send_price_task_result(result);
+      result.task = m_dbusTask;
+      send_price_task_result(std::move(result));
     }
 
     // then stop the run when the snapshot's empty
@@ -219,6 +241,22 @@ std::vector<dbus_progress_struct_t> get_all_scheduled_tasks_impl() {
   std::vector<dbus_progress_struct_t> result;
   global_task_list.to_flat_list(result, func);
   return result;
+}
+
+inline dbus::adaptor::dbus_progress_task_result_t
+progress_result_to_dbus_arg(scheduled_progress_task_result_t &&task) {
+  return dbus::adaptor::dbus_progress_task_result_t{std::move(task.task),
+                                                    std::move(task.tokens)};
+}
+
+void progress_result_sender_callback(bool &isRunning) {
+  prices_result_proxy_impl_t result_proxy("keep.my.journal.prices.result",
+                                          "/keep/my/journal/prices/result/1");
+  while (isRunning) {
+    auto result = scheduled_task_results.get();
+    result_proxy.broadcast_progress_price_result(
+        progress_result_to_dbus_arg(std::move(result)));
+  }
 }
 
 } // namespace keep_my_journal

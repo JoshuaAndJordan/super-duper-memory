@@ -20,31 +20,45 @@ endif ()
 
 if (NOT "${SDBUS_CXXXML_GEN_PATH}" STREQUAL "")
   set(COMMON_DBUS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/common/dbus")
+  set(COMMON_DBUS_INCLUDE "${COMMON_DBUS_PATH}/base")
   add_custom_command(
-    OUTPUT ${COMMON_DBUS_PATH}/include/time_proxy_client.hpp
-          ${COMMON_DBUS_PATH}/include/time_adaptor_server.hpp
+    OUTPUT ${COMMON_DBUS_INCLUDE}/time_proxy_client.hpp
+          ${COMMON_DBUS_INCLUDE}/time_adaptor_server.hpp
     COMMAND ${SDBUS_CXXXML_GEN_PATH} --verbose
-          --proxy=${COMMON_DBUS_PATH}/include/time_proxy_client.hpp
-          --adaptor=${COMMON_DBUS_PATH}/include/time_adaptor_server.hpp
+          --proxy=${COMMON_DBUS_INCLUDE}/time_proxy_client.hpp
+          --adaptor=${COMMON_DBUS_INCLUDE}/time_adaptor_server.hpp
           ${COMMON_DBUS_PATH}/xml/time_dbus_interfaces.xml
     DEPENDS ${COMMON_DBUS_PATH}/xml/time_dbus_interfaces.xml
     VERBATIM)
 
   add_custom_command(
-          OUTPUT ${COMMON_DBUS_PATH}/include/progress_proxy_client.hpp
-          ${COMMON_DBUS_PATH}/include/progress_adaptor_server.hpp
+          OUTPUT ${COMMON_DBUS_INCLUDE}/progress_proxy_client.hpp
+          ${COMMON_DBUS_INCLUDE}/progress_adaptor_server.hpp
           COMMAND ${SDBUS_CXXXML_GEN_PATH} --verbose
-          --proxy=${COMMON_DBUS_PATH}/include/progress_proxy_client.hpp
-          --adaptor=${COMMON_DBUS_PATH}/include/progress_adaptor_server.hpp
+          --proxy=${COMMON_DBUS_INCLUDE}/progress_proxy_client.hpp
+          --adaptor=${COMMON_DBUS_INCLUDE}/progress_adaptor_server.hpp
           ${COMMON_DBUS_PATH}/xml/progress_dbus_interfaces.xml
           DEPENDS ${COMMON_DBUS_PATH}/xml/progress_dbus_interfaces.xml
           VERBATIM)
 
+  add_custom_command(
+          OUTPUT ${COMMON_DBUS_INCLUDE}/price_task_result_client.hpp
+          ${COMMON_DBUS_INCLUDE}/price_task_result_server.hpp
+          COMMAND ${SDBUS_CXXXML_GEN_PATH} --verbose
+          --proxy=${COMMON_DBUS_INCLUDE}/price_task_result_client.hpp
+          --adaptor=${COMMON_DBUS_INCLUDE}/price_task_result_server.hpp
+          ${COMMON_DBUS_PATH}/xml/price_result_stream_interface.xml
+          DEPENDS ${COMMON_DBUS_PATH}/xml/price_result_stream_interface.xml
+          VERBATIM)
+
   add_custom_target(DbusGeneration ALL
-          DEPENDS common/dbus/include/time_proxy_client.hpp
-          common/dbus/include/time_adaptor_server.hpp
-          common/dbus/include/progress_adaptor_server.hpp
-          common/dbus/include/progress_proxy_client.hpp)
+          DEPENDS ${COMMON_DBUS_INCLUDE}/time_proxy_client.hpp
+          ${COMMON_DBUS_INCLUDE}/time_adaptor_server.hpp
+          ${COMMON_DBUS_INCLUDE}/progress_adaptor_server.hpp
+          ${COMMON_DBUS_INCLUDE}/progress_proxy_client.hpp
+          ${COMMON_DBUS_INCLUDE}/price_task_result_client.hpp
+          ${COMMON_DBUS_INCLUDE}/price_task_result_server.hpp
+  )
 endif ()
 
 if(COMMAND cmake_policy)
@@ -107,7 +121,7 @@ endif()
 option(ENABLE_USER_ACCT_MONITOR      "Compile AccountMonitor" on)
 option(ENABLE_COMMON_LIB             "Compile CommonLib" on)
 option(ENABLE_PRICE_MONITOR          "Compile Crypto price monitor" on)
-option(ENABLE_PRICE_MSG_DELEGATOR    "Compile price message delegator" on)
+option(ENABLE_PRICE_RESULT_STREAM    "Compile price result streamer" on)
 option(ENABLE_ACCOUNT_DISSEMINATOR   "Compile account disseminator" on)
 option(ENABLE_HTTP_STREAM            "Compile http interface for interaction" on)
 option(ENABLE_BACKEND_DATABASE       "Enable non-sqlite database support" on)
@@ -221,8 +235,8 @@ if (ENABLE_HTTP_STREAM)
   add_subdirectory(http_stream)
 endif()
 
-if (ENABLE_PRICE_MSG_DELEGATOR)
-  add_subdirectory(price_message_delegator)
+if (ENABLE_PRICE_RESULT_STREAM)
+  add_subdirectory(price_result_stream)
 endif()
 
 if (ENABLE_ACCOUNT_DISSEMINATOR)

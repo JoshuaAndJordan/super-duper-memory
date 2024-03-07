@@ -18,8 +18,6 @@ std::string exchangesToString(exchange_e exchange);
 #endif
 } // namespace utils
 
-utils::waitable_container_t<scheduled_price_task_result_t> results;
-
 template <typename T>
 [[noreturn]] void http_send_result(net::io_context &ioContext,
                                    utils::waitable_container_t<T> &container,

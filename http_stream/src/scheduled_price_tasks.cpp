@@ -2,8 +2,8 @@
 
 #include "scheduled_price_tasks.hpp"
 
-#include "dbus/include/progress_proxy_client_impl.hpp"
-#include "dbus/include/time_proxy_client_impl.hpp"
+#include "dbus/use/progress_proxy_client_impl.hpp"
+#include "dbus/use/time_proxy_client_impl.hpp"
 #include "price_stream/adaptor/scheduled_task_adaptor.hpp"
 #include <spdlog/spdlog.h>
 

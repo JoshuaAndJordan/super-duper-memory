@@ -1,11 +1,11 @@
-# Price Message Delegator
+# Price result stream
 # Copyright (C) 2023-2024 Joshua and Jordan Ogunyinka
 
 cmake_minimum_required(VERSION 3.6.0 FATAL_ERROR)
 
 # Project
 get_filename_component(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
-set(PROJECT_NAME price_message_delegator)
+set(PROJECT_NAME price_result_stream)
 
 ## load in pkg-config support
 find_package(PkgConfig)
@@ -53,6 +53,7 @@ if (ENABLE_MSGPACK_USAGE)
 endif ()
 
 include_directories(${PROJECT_DIR}/include)
+include_directories(${PROJECT_DIR}/../common)
 include_directories(${PROJECT_DIR}/../common/include)
 include_directories(${PROJECT_DIR}/../external)
 include_directories(${PROJECT_DIR}/../external/spdlog/include)
@@ -62,7 +63,7 @@ if(WIN32)
 else()
   # set stuff for other systems
   link_directories(/usr/lib)
-  link_libraries(stdc++fs pthread odbc)
+  link_libraries(stdc++fs pthread)
 endif()
 
 # Outputs
@@ -106,17 +107,20 @@ message("${PROJECT_NAME}: CURR BIN DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 
 # Source Files
 set(SRC_FILES
-  main.cpp)
+  main.cpp
+        src/dbus/price_result_adaptor.cpp)
 
 source_group("Sources" FILES ${SRC_FILES})
 
 # Header Files
-set(HEADERS_FILES)
+set(HEADERS_FILES
+        include/dbus/price_result_adaptor.hpp)
 
 source_group("Headers" FILES ${HEADERS_FILES})
 
 # Add executable to build.
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADERS_FILES})
+target_link_libraries(${PROJECT_NAME} SDBusCpp::sdbus-c++)
 
 if (ENABLE_MSGPACK_USAGE)
     target_link_libraries(${PROJECT_NAME} common cppzmq msgpack-cxx)
