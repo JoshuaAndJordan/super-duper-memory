@@ -15,4 +15,8 @@ get_price_tasks_for_user(std::string const &userID);
 std::vector<scheduled_price_task_t> get_price_tasks_for_all();
 bool push_progress_based_task_to_wire(scheduled_price_task_t &&);
 bool push_time_based_task_to_wire(scheduled_price_task_t &&);
+void send_telegram_registration_code(std::string const &mobile,
+                                     std::string const &code);
+void send_telegram_registration_password(std::string const &mobile,
+                                         std::string const &code);
 } // namespace keep_my_journal

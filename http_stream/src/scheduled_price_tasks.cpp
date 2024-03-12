@@ -2,16 +2,19 @@
 
 #include "scheduled_price_tasks.hpp"
 
-#include "dbus/use/progress_proxy_client_impl.hpp"
-#include "dbus/use/time_proxy_client_impl.hpp"
+#include "dbus/use_cases/progress_proxy_client_impl.hpp"
+#include "dbus/use_cases/telegram_proxy_client_impl.hpp"
+#include "dbus/use_cases/time_proxy_client_impl.hpp"
 #include "price_stream/adaptor/scheduled_task_adaptor.hpp"
 #include <spdlog/spdlog.h>
 
 namespace keep_my_journal {
-static char const *time_dbus_destination_path = "keep.my.journal.time";
-static char const *time_dbus_object_path = "/keep/my/journal/time/1";
-static char const *progress_dbus_destination_path = "keep.my.journal.progress";
-static char const *progress_dbus_object_path = "/keep/my/journal/progress/1";
+char const *const time_dbus_destination_path = "keep.my.journal.time";
+char const *const time_dbus_object_path = "/keep/my/journal/time/1";
+char const *const progress_dbus_destination_path = "keep.my.journal.progress";
+char const *const progress_dbus_object_path = "/keep/my/journal/progress/1";
+char const *const telegram_dbus_dest_path = "keep.my.journal.messaging.tg";
+char const *telegram_dbus_object_path = "/keep/my/journal/messaging/telegram/1";
 
 time_proxy_impl &time_dbus_client() {
   static time_proxy_impl proxyImpl(time_dbus_destination_path,
@@ -22,6 +25,12 @@ time_proxy_impl &time_dbus_client() {
 progress_proxy_impl &progress_dbus_client() {
   static progress_proxy_impl proxy(progress_dbus_destination_path,
                                    progress_dbus_object_path);
+  return proxy;
+}
+
+telegram_proxy_impl &telegram_dbus_client() {
+  static telegram_proxy_impl proxy(telegram_dbus_dest_path,
+                                   telegram_dbus_object_path);
   return proxy;
 }
 
@@ -124,4 +133,13 @@ std::vector<scheduled_price_task_t> get_price_tasks_for_all() {
   return result;
 }
 
+void send_telegram_registration_code(std::string const &mobile,
+                                     std::string const &code) {
+  telegram_dbus_client().on_authorization_code_requested(mobile, code);
+}
+
+void send_telegram_registration_password(std::string const &mobile,
+                                         std::string const &code) {
+  telegram_dbus_client().on_authorization_password_requested(mobile, code);
+}
 } // namespace keep_my_journal

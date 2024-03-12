@@ -79,6 +79,7 @@ private:
   void get_trading_pairs_handler(url_query_t const &optional_query);
   void add_new_pricing_tasks(url_query_t const &);
   void latest_price_handler(url_query_t const &);
+  void new_telegram_registration_code_callback(url_query_t const &);
   void monitor_user_account(url_query_t const &);
   void get_prices_task_status(url_query_t const &);
   void stop_prices_task(url_query_t const &);

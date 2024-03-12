@@ -1,5 +1,5 @@
 #include "time_based_watch.hpp"
-#include "dbus/use/price_task_result_client_impl.hpp"
+#include "dbus/use_cases/price_task_result_client_impl.hpp"
 #include "price_stream/adaptor/commodity_adaptor.hpp"
 
 #include <boost/asio/deadline_timer.hpp>

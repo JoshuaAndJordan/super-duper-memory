@@ -62,7 +62,7 @@ if(WIN32)
 else()
   # set stuff for other systems
   link_directories(/usr/lib)
-  link_libraries(stdc++fs pthread odbc)
+  link_libraries(stdc++fs pthread)
 endif()
 
 # Outputs

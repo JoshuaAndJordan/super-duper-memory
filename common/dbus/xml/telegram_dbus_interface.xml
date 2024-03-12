@@ -1,0 +1,14 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/keep/my/journal/messaging/telegram/1">
+  <interface name="keep.my.journal.messaging.tg">
+    <method name="on_authorization_code_requested">
+      <arg type="s" name="mobile_number" direction="in" />
+      <arg type="s" name="code" direction="in" />
+    </method>
+    <method name="on_authorization_password_requested">
+      <arg type="s" name="mobile_number" direction="in" />
+      <arg type="s" name="password" direction="in" />
+    </method>
+  </interface>
+  <service name="keep.my.journal.messaging.tg"/>
+</node>

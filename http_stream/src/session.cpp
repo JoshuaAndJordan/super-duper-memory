@@ -168,6 +168,9 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   m_endpoints.add_endpoint("/add_account_monitoring",
                            JSON_ROUTE_CALLBACK(monitor_user_account),
                            verb::post);
+  m_endpoints.add_special_endpoint(
+      "/new_telegram_registration_code/{number}/{code}",
+      JSON_ROUTE_CALLBACK(new_telegram_registration_code_callback), verb::put);
   m_endpoints.add_endpoint("/add_pricing_tasks",
                            JSON_ROUTE_CALLBACK(add_new_pricing_tasks),
                            verb::post);
@@ -461,6 +464,20 @@ void session_t::monitor_user_account(url_query_t const &) {
     spdlog::error(e.what());
     return error_handler(bad_request("JSON object is invalid", m_thisRequest));
   }
+}
+
+void session_t::new_telegram_registration_code_callback(
+    url_query_t const &query) {
+  auto mobile_number_iter = query.find("number");
+  auto code_iter = query.find("code");
+  if (utils::anyElementIsInvalid(query, mobile_number_iter, code_iter)) {
+    return error_handler(
+        bad_request("mobile number or code missing", m_thisRequest));
+  }
+  auto const mobile_number = mobile_number_iter->second;
+  auto const code = code_iter->second;
+  send_telegram_registration_code(mobile_number, code);
+  return send_response(json_success("OK", m_thisRequest));
 }
 
 void session_t::add_new_pricing_tasks(url_query_t const &) {

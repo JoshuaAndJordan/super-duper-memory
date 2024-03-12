@@ -8,9 +8,10 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
     apt clean
 
 RUN export DEBIAN_FRONTEND=noninteractive; \
+    apt update && \
     apt install -y libmsgpackc2 libmsgpack-dev pkg-config libzmq3-dev gperf && \
     apt install -y libcap-dev libmount-dev rsync dbus systemd tmux && \
-    apt install -y unixodbc-dev supervisor nginx python3 python3-pip meson && \
+    apt install -y supervisor python3 python3-pip python-is-python3 meson && \
     pip install requests flask && \
     apt clean
 
@@ -18,6 +19,7 @@ RUN git clone "https://github.com/msgpack/msgpack-c"
 RUN git clone "https://github.com/zeromq/libzmq"
 RUN git clone "https://github.com/zeromq/cppzmq"
 RUN git clone "https://github.com/Kistler-Group/sdbus-cpp"
+RUN git clone "https://github.com/tdlib/td"
 
 # install msgpack
 WORKDIR /msgpack-c/
@@ -56,19 +58,27 @@ WORKDIR /sdbus-cpp/tools/
 RUN cmake . && make install -j 2
 WORKDIR /
 
+WORKDIR /td
+RUN git checkout v1.8.0
+RUN git submodule update --init
+RUN mkdir -p /td/build
+WORKDIR /td/build
+RUN cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build . && make install
+WORKDIR /
+
 RUN mkdir -p run_crypto
 WORKDIR run_crypto
 RUN mkdir -p log log/account_monitor log/account_tasks log/http_stream \
     log/price_result_stream log/price_monitor log/progress_tasks log/nginx \
-    log/time_tasks
+    log/time_tasks log/telegram_messaging
 
-COPY docker/files/supervisord.conf /etc/supervisor/supervisord.conf
-COPY docker/files/nginx.conf /etc/nginx/nginx.conf
+COPY docker/files/conf/supervisord.conf /etc/supervisor/supervisord.conf
+COPY docker/files/conf/nginx.conf /etc/nginx/nginx.conf
 COPY docker/files/start.sh /run_crypto/start.sh
 COPY scripts/test_prices.py /test_prices.py
 COPY scripts/test_accounting.py /test_accounting.py
 COPY scripts/server.py /run_crypto/message_server.py
-COPY docker/files/keep.*.conf /etc/dbus-1/system.d/
+COPY docker/files/conf/keep.*.conf /etc/dbus-1/system.d/
 
 RUN service dbus start
 ENTRYPOINT ["/run_crypto/start.sh", "--"]
