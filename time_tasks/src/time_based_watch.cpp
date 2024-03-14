@@ -75,8 +75,7 @@ void time_based_watch_price_t::time_based_watch_price_impl_t::fetch_prices() {
                               instr.name == instrument;
                      });
     if (iter != instruments.cend()) {
-      data.tokens.emplace_back(iter->name, iter->currentPrice, iter->open24h,
-                               (int)iter->tradeType);
+      data.tokens.emplace_back(iter->name, iter->currentPrice, iter->open24h);
     }
   }
 

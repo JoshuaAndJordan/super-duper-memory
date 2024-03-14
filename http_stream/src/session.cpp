@@ -549,11 +549,8 @@ void session_t::add_new_pricing_tasks(url_query_t const &) {
     auto const json_job_list = json_root.at("contracts").get<json::array_t>();
     size_t const job_size = json_job_list.size();
 
-    std::vector<scheduled_price_task_t> erredTasks;
-    erredTasks.reserve(job_size);
-
-    spdlog::info("JobSize: {}", job_size);
-
+    std::vector<scheduled_price_task_t> scheduled_tasks;
+    scheduled_tasks.reserve(job_size);
     for (size_t i = 0; i < job_size; ++i) {
       auto const &json_object = json_job_list[i].get<json::object_t>();
       scheduled_price_task_t new_task{};
@@ -631,14 +628,16 @@ void session_t::add_new_pricing_tasks(url_query_t const &) {
       }
 
       new_task.status = task_state_e::initiated;
-      if (!schedule_new_price_task(new_task))
-        erredTasks.push_back(new_task);
+      scheduled_tasks.push_back(std::move(new_task));
     }
 
     json::object_t result;
-    result["status"] = static_cast<int>(error_type_e::NoError);
-    result["message"] = "OK";
-    result["failed"] = erredTasks;
+    if (!schedule_new_price_tasks(scheduled_tasks)) {
+      result["failed"] = scheduled_tasks;
+      result["status"] = static_cast<int>(error_type_e::BadRequest);
+    } else {
+      result["status"] = static_cast<int>(error_type_e::NoError);
+    }
 
     if (!request_id.empty())
       result["id"] = request_id;

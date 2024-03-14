@@ -201,7 +201,7 @@ def test_getting_price():
 
 def main():
     user_tasks: Dict[str, List[DataF]] = {}
-    total_tasks = 100
+    total_tasks = 10
     counter = 0
     for _ in range(total_tasks):
         task = generate_add_pricing_list_object()

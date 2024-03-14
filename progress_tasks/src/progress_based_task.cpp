@@ -23,15 +23,25 @@ inline void send_price_task_result(scheduled_progress_task_result_t &&res) {
   scheduled_task_results.append(std::move(res));
 }
 
+inline bool is_lesser_or_equals(double const a, double const b) {
+  return a <= b;
+}
+
+inline bool is_greater_or_equals(double const a, double const b) {
+  return a >= b;
+}
+
 class progress_based_watch_price_t::progress_based_watch_price_impl_t
     : public std::enable_shared_from_this<progress_based_watch_price_impl_t> {
+  using progress_comparator_t = bool (*)(double, double);
+
   net::io_context &m_ioContext;
   utils::unique_elements_t<instrument_type_t> &m_instruments;
   scheduled_price_task_t const m_task;
   dbus::adaptor::dbus_progress_struct_t const m_dbusTask;
   std::vector<instrument_type_t> m_snapshots;
   std::optional<net::deadline_timer> m_periodicTimer = std::nullopt;
-  bool m_isLesserThanZero = false;
+  progress_comparator_t m_comparator = nullptr;
 
 public:
   progress_based_watch_price_impl_t(net::io_context &ioContext,
@@ -61,7 +71,8 @@ public:
       }
     }
 
-    m_isLesserThanZero = (percentage < 0.0);
+    m_comparator =
+        (percentage < 0.0) ? is_lesser_or_equals : is_greater_or_equals;
     assert(m_snapshots.size() == task.tokens.size());
   }
 
@@ -97,19 +108,9 @@ public:
       if (!optInstr.has_value())
         continue;
 
-      if (m_isLesserThanZero) {
-        if (instrument.currentPrice <= optInstr->currentPrice) {
-          result.tokens.emplace_back(instrument.name, instrument.currentPrice,
-                                     instrument.open24h,
-                                     (int)instrument.tradeType);
-        }
-      } else {
-        if (instrument.currentPrice >= optInstr->currentPrice) {
-          result.tokens.emplace_back(instrument.name, instrument.currentPrice,
-                                     instrument.open24h,
-                                     (int)instrument.tradeType);
-        }
-      }
+      if (m_comparator(instrument.currentPrice, optInstr->currentPrice))
+        result.tokens.emplace_back(instrument.name, instrument.currentPrice,
+                                   instrument.open24h);
     }
 
     if (!result.tokens.empty()) {
@@ -117,9 +118,7 @@ public:
         m_snapshots.erase(
             std::remove_if(m_snapshots.begin(), m_snapshots.end(),
                            [instrument](instrument_type_t const &instr) {
-                             return instrument.get<3>() ==
-                                        (int)instr.tradeType &&
-                                    instrument.get<0>() == instr.name;
+                             return instrument.get<0>() == instr.name;
                            }),
             m_snapshots.end());
       }

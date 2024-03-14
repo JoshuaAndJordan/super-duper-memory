@@ -2,10 +2,10 @@
 <node name="/keep/my/journal/prices/result/1">
     <interface name="keep.my.journal.prices.interface.result">
         <method name="broadcast_progress_price_result">
-            <arg type="((tdiiiissas)a(sddi))" name="result" direction="in" />
+            <arg type="((tdiiiissas)a(sdd))" name="result" direction="in" />
         </method>
         <method name="broadcast_time_price_result">
-            <arg type="((ttiiiissas)a(sddi))" name="result" direction="in" />
+            <arg type="((ttiiiissas)a(sdd))" name="result" direction="in" />
         </method>
     </interface>
     <service name="keep.my.journal.prices.result"/>

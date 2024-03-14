@@ -53,30 +53,47 @@ bool passed_valid_task_check(scheduled_price_task_t &task) {
       task.tradeType == trade_type_e::total)
     return false;
 
+  std::sort(task.tokens.begin(), task.tokens.end());
+  if (std::unique(task.tokens.begin(), task.tokens.end()) != task.tokens.end())
+    return false;
   return true;
 }
 
-bool schedule_new_price_task(scheduled_price_task_t taskInfo) {
-  if (!passed_valid_task_check(taskInfo))
+bool schedule_new_price_tasks(std::vector<scheduled_price_task_t> tasks) {
+  if (!std::all_of(std::begin(tasks), std::end(tasks),
+                   passed_valid_task_check)) {
     return false;
+  }
 
   static uint64_t task_id = 0;
-  taskInfo.process_assigned_id = ++task_id;
+  bool result = true;
+  std::vector<scheduled_price_task_t> erred_list;
+  erred_list.reserve(tasks.size());
 
-  if (taskInfo.percentProp)
-    return push_progress_based_task_to_wire(std::move(taskInfo));
-  else if (taskInfo.timeProp)
-    return push_time_based_task_to_wire(std::move(taskInfo));
-  return false;
+  for (auto &task : tasks) {
+    task.process_assigned_id = ++task_id;
+    if (task.percentProp)
+      result = push_progress_based_task_to_wire(task);
+    else if (task.timeProp)
+      result = push_time_based_task_to_wire(task);
+    if (!result)
+      erred_list.push_back(task);
+  }
+
+  if (!erred_list.empty()) {
+    std::for_each(erred_list.begin(), erred_list.end(),
+                  stop_scheduled_price_task);
+  }
+  return erred_list.empty();
 }
 
-bool push_progress_based_task_to_wire(scheduled_price_task_t &&taskInfo) {
+bool push_progress_based_task_to_wire(scheduled_price_task_t const &taskInfo) {
   auto &client = progress_dbus_client();
   auto const arg = dbus::adaptor::scheduled_task_to_dbus_progress(taskInfo);
   return client.schedule_new_progress_task(arg);
 }
 
-bool push_time_based_task_to_wire(scheduled_price_task_t &&taskInfo) {
+bool push_time_based_task_to_wire(scheduled_price_task_t const &taskInfo) {
   auto const arg = dbus::adaptor::scheduled_task_to_dbus_time(taskInfo);
   return time_dbus_client().schedule_new_time_task(arg);
 }
