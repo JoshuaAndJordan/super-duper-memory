@@ -168,9 +168,6 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   m_endpoints.add_endpoint("/add_account_monitoring",
                            JSON_ROUTE_CALLBACK(monitor_user_account),
                            verb::post);
-  m_endpoints.add_special_endpoint(
-      "/new_telegram_registration_code/{number}/{code}",
-      JSON_ROUTE_CALLBACK(new_telegram_registration_code_callback), verb::put);
   m_endpoints.add_endpoint("/add_pricing_tasks",
                            JSON_ROUTE_CALLBACK(add_new_pricing_tasks),
                            verb::post);
@@ -179,6 +176,16 @@ std::shared_ptr<session_t> session_t::add_endpoint_interfaces() {
   m_endpoints.add_endpoint("/all_price_tasks",
                            ROUTE_CALLBACK(get_all_running_price_tasks),
                            verb::get);
+  m_endpoints.add_special_endpoint("/new_telegram_message/{chat_id}",
+                                   JSON_ROUTE_CALLBACK(send_telegram_text),
+                                   verb::post);
+  m_endpoints.add_special_endpoint(
+      "/new_telegram_registration_code/{number}/{code}",
+      JSON_ROUTE_CALLBACK(new_telegram_registration_code_callback), verb::put);
+  m_endpoints.add_special_endpoint(
+      "/new_telegram_registration_password/{number}/{password}",
+      JSON_ROUTE_CALLBACK(new_telegram_registration_password_callback),
+      verb::put);
   m_endpoints.add_special_endpoint("/list_price_tasks/{user_id}",
                                    ROUTE_CALLBACK(get_prices_task_status),
                                    verb::get);
@@ -477,6 +484,52 @@ void session_t::new_telegram_registration_code_callback(
   auto const mobile_number = mobile_number_iter->second;
   auto const code = code_iter->second;
   send_telegram_registration_code(mobile_number, code);
+  return send_response(json_success("OK", m_thisRequest));
+}
+
+void session_t::new_telegram_registration_password_callback(
+    url_query_t const &query) {
+  auto mobile_number_iter = query.find("number");
+  auto password_iter = query.find("password");
+  if (utils::anyElementIsInvalid(query, mobile_number_iter, password_iter)) {
+    return error_handler(
+        bad_request("mobile number or password missing", m_thisRequest));
+  }
+  auto const mobile_number = mobile_number_iter->second;
+  auto const password = password_iter->second;
+  send_telegram_registration_password(mobile_number, password);
+  return send_response(json_success("OK", m_thisRequest));
+}
+
+void session_t::send_telegram_text(const keep_my_journal::url_query_t &query) {
+  auto chat_id_iter = query.find("chat_id");
+  if (chat_id_iter == query.end())
+    return error_handler(bad_request("chat id is missing", m_thisRequest));
+
+  std::string content{};
+  int64_t chat_id = 0;
+
+  try {
+    auto const json_root =
+        json::parse(m_thisRequest.body()).get<json::object_t>();
+    auto const content_iter = json_root.find("content");
+    if (content_iter == json_root.end()) {
+      return error_handler(
+          bad_request("chat content is missing", m_thisRequest));
+    }
+    content = content_iter->second.get<json::string_t>();
+    chat_id = std::stoll(chat_id_iter->second);
+  } catch (std::exception const &e) {
+    spdlog::error(e.what());
+    return error_handler(
+        bad_request("badly formed JSON content", m_thisRequest));
+  }
+
+  if (content.empty() || chat_id == 0) {
+    return error_handler(
+        bad_request("content or chat id missing", m_thisRequest));
+  }
+  send_new_telegram_text(chat_id, content);
   return send_response(json_success("OK", m_thisRequest));
 }
 

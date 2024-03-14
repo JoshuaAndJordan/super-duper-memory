@@ -9,6 +9,10 @@
       <arg type="s" name="mobile_number" direction="in" />
       <arg type="s" name="password" direction="in" />
     </method>
+    <method name="send_new_telegram_text">
+      <arg type="x" name="chat_id" direction="in" />
+      <arg type="s" name="content" direction="in" />
+    </method>
   </interface>
   <service name="keep.my.journal.messaging.tg"/>
 </node>

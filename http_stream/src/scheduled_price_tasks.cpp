@@ -139,7 +139,11 @@ void send_telegram_registration_code(std::string const &mobile,
 }
 
 void send_telegram_registration_password(std::string const &mobile,
-                                         std::string const &code) {
-  telegram_dbus_client().on_authorization_password_requested(mobile, code);
+                                         std::string const &password) {
+  telegram_dbus_client().on_authorization_password_requested(mobile, password);
+}
+
+void send_new_telegram_text(int64_t const chat_id, std::string const &content) {
+  telegram_dbus_client().send_new_telegram_text(chat_id, content);
 }
 } // namespace keep_my_journal

@@ -7,6 +7,8 @@ void on_authorization_code_requested_impl(std::string const &,
                                           std::string const &);
 void on_authorization_password_requested_impl(std::string const &,
                                               std::string const &);
+void send_new_telegram_text_impl(int64_t, std::string const &);
+
 using telegram_base_t =
     sdbus::AdaptorInterfaces<keep::my::journal::messaging::tg_adaptor>;
 
@@ -26,6 +28,11 @@ public:
   void on_authorization_password_requested(std::string const &mobile_number,
                                            std::string const &password) final {
     return on_authorization_password_requested_impl(mobile_number, password);
+  }
+
+  void send_new_telegram_text(int64_t const &chat_id,
+                              std::string const &content) final {
+    return send_new_telegram_text_impl(chat_id, content);
   }
 };
 } // namespace keep_my_journal

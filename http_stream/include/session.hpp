@@ -80,6 +80,8 @@ private:
   void add_new_pricing_tasks(url_query_t const &);
   void latest_price_handler(url_query_t const &);
   void new_telegram_registration_code_callback(url_query_t const &);
+  void send_telegram_text(const keep_my_journal::url_query_t &query);
+  void new_telegram_registration_password_callback(url_query_t const &);
   void monitor_user_account(url_query_t const &);
   void get_prices_task_status(url_query_t const &);
   void stop_prices_task(url_query_t const &);

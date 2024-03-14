@@ -19,4 +19,5 @@ void send_telegram_registration_code(std::string const &mobile,
                                      std::string const &code);
 void send_telegram_registration_password(std::string const &mobile,
                                          std::string const &code);
+void send_new_telegram_text(int64_t chat_id, std::string const &content);
 } // namespace keep_my_journal
